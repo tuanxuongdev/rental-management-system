@@ -1,7 +1,9 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 
-import { WorkerHealthService } from './health/worker-health.service';
+import { WorkerHealthServer } from './health/worker-health-server';
+import { PrismaModule } from './infrastructure/prisma/prisma.module';
+import { OutboxConsumerService } from './outbox/outbox-consumer.service';
 
 @Module({
   imports: [
@@ -9,7 +11,8 @@ import { WorkerHealthService } from './health/worker-health.service';
       isGlobal: true,
       envFilePath: ['.env', '../../.env'],
     }),
+    PrismaModule,
   ],
-  providers: [WorkerHealthService],
+  providers: [WorkerHealthServer, OutboxConsumerService],
 })
 export class AppModule {}

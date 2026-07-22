@@ -1,0 +1,161 @@
+/// Identity, credentials, sessions, MFA, and one-time tokens.
+
+enum UserStatus {
+  PENDING_VERIFICATION
+  ACTIVE
+  DISABLED
+}
+
+enum CredentialProvider {
+  LOCAL
+}
+
+enum SessionStatus {
+  ACTIVE
+  REVOKED
+}
+
+enum MfaMethodType {
+  TOTP
+  RECOVERY_CODE
+}
+
+enum MfaMethodStatus {
+  ACTIVE
+  DISABLED
+}
+
+enum OneTimeTokenPurpose {
+  PASSWORD_RESET
+  EMAIL_VERIFY
+  LOGIN_MFA
+}
+
+model User {
+  id               String     @id @default(uuid()) @db.Uuid
+  email            String
+  normalizedEmail  String     @unique @map("normalized_email")
+  displayName      String?    @map("display_name")
+  status           UserStatus @default(PENDING_VERIFICATION)
+  emailVerifiedAt  DateTime?  @map("email_verified_at")
+  tokenVersion     Int        @default(1) @map("token_version")
+  lastLoginAt      DateTime?  @map("last_login_at")
+  createdAt        DateTime   @default(now()) @map("created_at")
+  updatedAt        DateTime   @updatedAt @map("updated_at")
+
+  credentials UserCredential[]
+  sessions    UserSession[]
+  mfaMethods  MfaMethod[]
+  oneTimeTokens OneTimeToken[]
+  memberships TenantMembership[]
+  invitationsSent Invitation[] @relation("InvitationInviter")
+
+  @@index([status])
+  @@map("users")
+}
+
+model UserCredential {
+  id              String             @id @default(uuid()) @db.Uuid
+  userId          String             @map("user_id") @db.Uuid
+  provider        CredentialProvider @default(LOCAL)
+  providerSubject String?            @map("provider_subject")
+  passwordHash    String?            @map("password_hash")
+  hashAlgorithm   String             @default("ARGON2ID") @map("hash_algorithm")
+  hashVersion     Int                @default(1) @map("hash_version")
+  changedAt       DateTime           @default(now()) @map("changed_at")
+  revokedAt       DateTime?          @map("revoked_at")
+  createdAt       DateTime           @default(now()) @map("created_at")
+  updatedAt       DateTime           @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerSubject])
+  @@index([userId])
+  @@map("user_credentials")
+}
+
+model UserSession {
+  id                  String        @id @default(uuid()) @db.Uuid
+  userId              String        @map("user_id") @db.Uuid
+  currentTenantId     String?       @map("current_tenant_id") @db.Uuid
+  currentMembershipId String?       @map("current_membership_id") @db.Uuid
+  tokenFamilyId       String        @map("token_family_id") @db.Uuid
+  sessionVersion      Int           @default(1) @map("session_version")
+  authTime            DateTime      @map("auth_time")
+  amr                 String[]      @default([])
+  acr                 String        @default("1")
+  deviceName          String?       @map("device_name")
+  userAgentSummary    String?       @map("user_agent_summary")
+  ipHash              String?       @map("ip_hash")
+  status              SessionStatus @default(ACTIVE)
+  expiresAt           DateTime      @map("expires_at")
+  absoluteExpiresAt   DateTime      @map("absolute_expires_at")
+  lastActiveAt        DateTime      @default(now()) @map("last_active_at")
+  revokedAt           DateTime?     @map("revoked_at")
+  revocationReason    String?       @map("revocation_reason")
+  createdAt           DateTime      @default(now()) @map("created_at")
+  updatedAt           DateTime      @updatedAt @map("updated_at")
+
+  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  refreshTokens RefreshToken[]
+
+  @@index([userId, status])
+  @@index([expiresAt])
+  @@map("user_sessions")
+}
+
+model RefreshToken {
+  id           String    @id @default(uuid()) @db.Uuid
+  sessionId    String    @map("session_id") @db.Uuid
+  familyId     String    @map("family_id") @db.Uuid
+  tokenHash    String    @unique @map("token_hash")
+  issuedAt     DateTime  @default(now()) @map("issued_at")
+  consumedAt   DateTime? @map("consumed_at")
+  replacedById String?   @map("replaced_by_id") @db.Uuid
+  expiresAt    DateTime  @map("expires_at")
+  revokedAt    DateTime? @map("revoked_at")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  session UserSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([familyId])
+  @@index([sessionId, consumedAt])
+  @@map("refresh_tokens")
+}
+
+model MfaMethod {
+  id              String          @id @default(uuid()) @db.Uuid
+  userId          String          @map("user_id") @db.Uuid
+  methodType      MfaMethodType   @map("method_type")
+  credentialId    String          @unique @map("credential_id")
+  encryptedSecret String?         @map("encrypted_secret")
+  status          MfaMethodStatus @default(ACTIVE)
+  enrolledAt      DateTime        @default(now()) @map("enrolled_at")
+  createdAt       DateTime        @default(now()) @map("created_at")
+  updatedAt       DateTime        @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, methodType, status])
+  @@map("mfa_methods")
+}
+
+model OneTimeToken {
+  id          String              @id @default(uuid()) @db.Uuid
+  userId      String              @map("user_id") @db.Uuid
+  purpose     OneTimeTokenPurpose
+  targetEmail String              @map("target_email")
+  tokenHash   String              @unique @map("token_hash")
+  expiresAt   DateTime            @map("expires_at")
+  consumedAt  DateTime?           @map("consumed_at")
+  revokedAt   DateTime?           @map("revoked_at")
+  createdAt   DateTime            @default(now()) @map("created_at")
+  updatedAt   DateTime            @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, purpose])
+  @@index([expiresAt])
+  @@map("one_time_tokens")
+}

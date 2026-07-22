@@ -2,16 +2,33 @@
 
 Single source of truth for relational persistence.
 
+## Layout
+
+```text
+prisma/
+  schema/
+    base.prisma          # generator + datasource
+    platform.prisma      # Sprint-02 platform durability tables
+    migrations/          # immutable forward-only migrations
+  raw-sql/               # reviewed PostgreSQL-only DDL fragments
+```
+
 ## Commands
 
 ```bash
 pnpm prisma:generate
 pnpm prisma:validate
+pnpm prisma:migrate:deploy
+pnpm prisma:migrate:status
 ```
 
-Schema files live under `prisma/schema/` and will grow by domain module. No seed data in the foundation.
+Local Postgres (Docker Compose) listens on **host port 5433** to avoid conflicts with other installations.
 
-## Notes
+## Sprint-02 platform tables
 
-- Migrations are added in later sprints.
-- Raw SQL fragments for PostgreSQL-only DDL live under `prisma/raw-sql/`.
+- `outbox_events`
+- `processed_messages`
+- `scheduled_jobs`
+- `idempotency_keys`
+
+Domain schemas (identity, inventory, leasing, …) are added in later sprints. Migrations are forward-only and immutable once applied.

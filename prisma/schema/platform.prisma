@@ -1,0 +1,94 @@
+/// Platform durability tables — source of truth for async work and API idempotency.
+/// Domain/business tables are added in later sprints.
+
+enum OutboxEventStatus {
+  PENDING
+  PUBLISHED
+  FAILED
+}
+
+enum ScheduledJobStatus {
+  ACTIVE
+  PAUSED
+  COMPLETED
+  CANCELLED
+}
+
+enum IdempotencyKeyStatus {
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+model OutboxEvent {
+  id             String            @id @default(cuid())
+  aggregateType  String            @map("aggregate_type")
+  aggregateId    String            @map("aggregate_id")
+  sequence       Int               @default(1)
+  eventType      String            @map("event_type")
+  eventVersion   Int               @default(1) @map("event_version")
+  payload        Json
+  correlationId  String?           @map("correlation_id")
+  tenantId       String?           @map("tenant_id")
+  status         OutboxEventStatus @default(PENDING)
+  occurredAt     DateTime          @default(now()) @map("occurred_at")
+  availableAt    DateTime          @default(now()) @map("available_at")
+  publishedAt    DateTime?         @map("published_at")
+  createdAt      DateTime          @default(now()) @map("created_at")
+  updatedAt      DateTime          @updatedAt @map("updated_at")
+
+  @@unique([aggregateType, aggregateId, sequence])
+  @@index([status, availableAt])
+  @@index([publishedAt])
+  @@map("outbox_events")
+}
+
+model ProcessedMessage {
+  id           String   @id @default(cuid())
+  consumerName String   @map("consumer_name")
+  messageId    String   @map("message_id")
+  outcome      String
+  processedAt  DateTime @default(now()) @map("processed_at")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  @@unique([consumerName, messageId])
+  @@index([processedAt])
+  @@map("processed_messages")
+}
+
+model ScheduledJob {
+  id          String             @id @default(cuid())
+  jobType     String             @map("job_type")
+  tenantId    String?            @map("tenant_id")
+  timezone    String             @default("UTC")
+  scheduleKey String             @map("schedule_key")
+  nextRunAt   DateTime?          @map("next_run_at")
+  lockKey     String?            @map("lock_key")
+  status      ScheduledJobStatus @default(ACTIVE)
+  createdAt   DateTime           @default(now()) @map("created_at")
+  updatedAt   DateTime           @updatedAt @map("updated_at")
+
+  @@unique([jobType, scheduleKey, tenantId])
+  @@index([status, nextRunAt])
+  @@map("scheduled_jobs")
+}
+
+model IdempotencyKey {
+  id             String               @id @default(cuid())
+  tenantId       String?              @map("tenant_id")
+  actorScope     String               @map("actor_scope")
+  operation      String
+  key            String
+  requestHash    String               @map("request_hash")
+  status         IdempotencyKeyStatus @default(COMPLETED)
+  responseStatus Int                  @map("response_status")
+  responseBody   Json                 @map("response_body")
+  expiresAt      DateTime             @map("expires_at")
+  createdAt      DateTime             @default(now()) @map("created_at")
+  updatedAt      DateTime             @updatedAt @map("updated_at")
+
+  @@unique([tenantId, actorScope, operation, key])
+  @@index([expiresAt])
+  @@map("idempotency_keys")
+}

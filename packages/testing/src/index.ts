@@ -1,4 +1,7 @@
-/** Shared test helpers placeholder — no domain factories yet. */
-export function createTestId(prefix = 'test'): string {
-  return `${prefix}_${Date.now().toString(36)}`;
-}
+export { createTestId } from './test-id';
+export {
+  createIntegrationPrismaClient,
+  getIntegrationDatabaseUrl,
+  isDatabaseReachable,
+  resetPlatformTables,
+} from './integration-database';

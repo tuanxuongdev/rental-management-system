@@ -1,49 +1,27 @@
-import {
-  type CanActivate,
-  type ExecutionContext,
-  Injectable,
-  Module,
-  UnauthorizedException,
-  createParamDecorator,
-} from '@nestjs/common';
+import { Module } from '@nestjs/common';
+import { APP_GUARD } from '@nestjs/core';
 
-/** Skeleton actor — no real authentication yet. */
-export type AuthActor = {
-  userId: string | null;
-  organizationId: string | null;
-};
+import { PrismaModule } from '../../infrastructure/prisma/prisma.module';
+import { IdentityModule } from '../../modules/identity/identity.module';
 
-export const CurrentActor = createParamDecorator(
-  (_data: unknown, ctx: ExecutionContext): AuthActor => {
-    const request = ctx.switchToHttp().getRequest<{ actor?: AuthActor }>();
-    return request.actor ?? { userId: null, organizationId: null };
-  },
-);
-
-/**
- * Placeholder guard. Always allows in foundation builds.
- * Later sprints replace this with JWT session validation.
- * Access tokens must never be read from localStorage.
- */
-@Injectable()
-export class AuthSkeletonGuard implements CanActivate {
-  canActivate(context: ExecutionContext): boolean {
-    const request = context
-      .switchToHttp()
-      .getRequest<{ actor?: AuthActor; headers: Record<string, unknown> }>();
-    request.actor = { userId: null, organizationId: null };
-
-    // Reject forbidden tenancy header pattern early (confused-deputy prevention).
-    if (request.headers['x-tenant-id'] !== undefined) {
-      throw new UnauthorizedException('X-Tenant-ID is not supported');
-    }
-
-    return true;
-  }
-}
+import { AuthUserValidator } from './auth-user.validator';
+import { JwtAuthGuard } from './jwt-auth.guard';
+import { OrganizationHeaderGuard } from './organization.guards';
 
 @Module({
-  providers: [AuthSkeletonGuard],
-  exports: [AuthSkeletonGuard],
+  imports: [PrismaModule, IdentityModule],
+  providers: [
+    OrganizationHeaderGuard,
+    AuthUserValidator,
+    {
+      provide: APP_GUARD,
+      useClass: OrganizationHeaderGuard,
+    },
+    {
+      provide: APP_GUARD,
+      useClass: JwtAuthGuard,
+    },
+  ],
+  exports: [AuthUserValidator],
 })
 export class AuthModule {}

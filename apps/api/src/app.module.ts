@@ -1,9 +1,15 @@
-import { Module } from '@nestjs/common';
+import { type MiddlewareConsumer, Module, type NestModule } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 
+import { ApiConfigModule } from './bootstrap/api-config.module';
 import { AuthModule } from './common/auth/auth.module';
+import { CorrelationIdMiddleware } from './common/context/correlation-id.middleware';
+import { ObservabilityModule } from './common/observability/observability.module';
 import { HealthModule } from './health/health.module';
 import { PrismaModule } from './infrastructure/prisma/prisma.module';
+import { IdentityModule } from './modules/identity/identity.module';
+import { MetaModule } from './modules/meta/meta.module';
+import { TenancyModule } from './modules/tenancy/tenancy.module';
 
 @Module({
   imports: [
@@ -11,9 +17,18 @@ import { PrismaModule } from './infrastructure/prisma/prisma.module';
       isGlobal: true,
       envFilePath: ['.env', '../../.env'],
     }),
+    ApiConfigModule,
+    ObservabilityModule,
     PrismaModule,
     AuthModule,
     HealthModule,
+    MetaModule,
+    IdentityModule,
+    TenancyModule,
   ],
 })
-export class AppModule {}
+export class AppModule implements NestModule {
+  configure(consumer: MiddlewareConsumer): void {
+    consumer.apply(CorrelationIdMiddleware).forRoutes('*');
+  }
+}

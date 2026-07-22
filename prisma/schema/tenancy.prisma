@@ -1,0 +1,117 @@
+/// Organization (tenant) boundary, memberships, and invitations.
+
+enum TenantStatus {
+  ACTIVE
+  SUSPENDED
+}
+
+enum MembershipType {
+  WORKFORCE
+  RESIDENT
+}
+
+enum MembershipStatus {
+  PENDING
+  ACTIVE
+  SUSPENDED
+}
+
+enum InvitationPurpose {
+  WORKFORCE
+  RESIDENT_PORTAL
+}
+
+enum InvitationStatus {
+  PENDING
+  ACCEPTED
+  REVOKED
+  EXPIRED
+}
+
+enum SeedRoleKey {
+  OWNER
+  ADMIN
+}
+
+model Tenant {
+  id              String       @id @default(uuid()) @db.Uuid
+  slug            String       @unique
+  legalName       String       @map("legal_name")
+  displayName     String       @map("display_name")
+  status          TenantStatus @default(ACTIVE)
+  defaultCurrency String       @default("USD") @map("default_currency") @db.Char(3)
+  defaultLocale   String       @default("en-US") @map("default_locale")
+  timeZone        String       @default("UTC") @map("time_zone")
+  dataRegion      String?      @map("data_region")
+  version         Int          @default(1)
+  createdAt       DateTime     @default(now()) @map("created_at")
+  updatedAt       DateTime     @updatedAt @map("updated_at")
+
+  settings    TenantSetting[]
+  memberships TenantMembership[]
+  invitations Invitation[]
+  auditEvents AuditEvent[]
+
+  @@index([status])
+  @@map("tenants")
+}
+
+model TenantSetting {
+  id            String   @id @default(uuid()) @db.Uuid
+  tenantId      String   @map("tenant_id") @db.Uuid
+  settingKey    String   @map("setting_key")
+  settingValue  Json     @map("setting_value")
+  effectiveFrom DateTime @default(now()) @map("effective_from")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, settingKey, effectiveFrom])
+  @@map("tenant_settings")
+}
+
+model TenantMembership {
+  id             String           @id @default(uuid()) @db.Uuid
+  tenantId       String           @map("tenant_id") @db.Uuid
+  userId         String           @map("user_id") @db.Uuid
+  membershipType MembershipType   @default(WORKFORCE) @map("membership_type")
+  status         MembershipStatus @default(PENDING)
+  seedRole       SeedRoleKey?     @map("seed_role")
+  effectiveFrom  DateTime         @default(now()) @map("effective_from")
+  effectiveTo    DateTime?        @map("effective_to")
+  version        Int              @default(1)
+  createdAt      DateTime         @default(now()) @map("created_at")
+  updatedAt      DateTime         @updatedAt @map("updated_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, userId, membershipType])
+  @@index([userId, status])
+  @@map("tenant_memberships")
+}
+
+model Invitation {
+  id             String            @id @default(uuid()) @db.Uuid
+  tenantId       String            @map("tenant_id") @db.Uuid
+  email          String
+  normalizedEmail String           @map("normalized_email")
+  purpose        InvitationPurpose @default(WORKFORCE)
+  tokenHash      String            @unique @map("token_hash")
+  inviterUserId  String            @map("inviter_user_id") @db.Uuid
+  proposedRoleIds Json             @default("[]") @map("proposed_role_ids")
+  status         InvitationStatus  @default(PENDING)
+  expiresAt      DateTime          @map("expires_at")
+  acceptedAt     DateTime?         @map("accepted_at")
+  message        String?
+  createdAt      DateTime          @default(now()) @map("created_at")
+  updatedAt      DateTime          @updatedAt @map("updated_at")
+
+  tenant  Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  inviter User   @relation("InvitationInviter", fields: [inviterUserId], references: [id])
+
+  @@index([tenantId, status])
+  @@index([normalizedEmail, status])
+  @@map("invitations")
+}

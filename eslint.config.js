@@ -12,6 +12,7 @@ export default tseslint.config(
       '**/.next/**',
       '**/coverage/**',
       '**/generated/**',
+      '**/next-env.d.ts',
       'pnpm-lock.yaml',
     ],
   },
@@ -54,6 +55,78 @@ export default tseslint.config(
         },
       ],
       'import/no-duplicates': 'error',
+    },
+  },
+  {
+    files: ['packages/**/*.{ts,tsx}'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: ['**/apps/*', '**/apps/**'],
+              message: 'packages must not import from apps',
+            },
+            {
+              group: ['@rpm/testing', '**/packages/testing/**'],
+              message: 'packages must not import testing utilities in production code',
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
+    files: ['apps/api/**/*.ts'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: ['**/apps/web/**', '**/apps/worker/**'],
+              message: 'apps/api must not import from other apps',
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
+    files: ['apps/web/**/*.{ts,tsx}'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: ['**/apps/api/**', '**/apps/worker/**'],
+              message: 'apps/web must not import from other apps',
+            },
+            {
+              group: ['@rpm/testing', '**/packages/testing/**'],
+              message: 'apps/web must not import testing utilities in production code',
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
+    files: ['apps/worker/**/*.ts'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: ['**/apps/web/**', '**/apps/api/**'],
+              message: 'apps/worker must not import from other apps',
+            },
+          ],
+        },
+      ],
     },
   },
   eslintConfigPrettier,

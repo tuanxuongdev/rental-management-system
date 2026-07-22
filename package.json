@@ -18,8 +18,15 @@
     "typecheck": "pnpm -r --filter @rpm/contracts --filter @rpm/testing --filter @rpm/ui --filter @rpm/api --filter @rpm/worker --filter @rpm/web run typecheck",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
+    "unit": "vitest run",
+    "unit:watch": "vitest",
+    "integration": "pnpm --filter @rpm/contracts build && pnpm --filter @rpm/testing build && pnpm prisma:generate && vitest run --config vitest.integration.config.ts",
+    "boundaries": "eslint --max-warnings=0 \"packages/**/*.{ts,tsx}\" \"apps/**/*.{ts,tsx}\"",
+    "sca": "pnpm audit --audit-level=high",
     "prisma:generate": "prisma generate --schema=prisma/schema",
     "prisma:validate": "prisma validate --schema=prisma/schema",
+    "prisma:migrate:deploy": "prisma migrate deploy --schema=prisma/schema",
+    "prisma:migrate:status": "prisma migrate status --schema=prisma/schema",
     "prepare": "husky",
     "commitlint": "commitlint --edit",
     "lint-staged": "lint-staged"
@@ -40,7 +47,8 @@
     "prisma": "^6.1.0",
     "@prisma/client": "^6.1.0",
     "typescript": "^5.7.2",
-    "typescript-eslint": "^8.18.2"
+    "typescript-eslint": "^8.18.2",
+    "vitest": "^2.1.8"
   },
   "lint-staged": {
     "*.{js,jsx,ts,tsx,mjs,cjs}": [

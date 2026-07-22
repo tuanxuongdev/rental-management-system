@@ -1,0 +1,101 @@
+name: Deploy Staging
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-staging-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  deploy-staging:
+    name: Build, deploy, and smoke test (staging)
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Enable pnpm
+        run: corepack enable && corepack prepare pnpm@9.15.0 --activate
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Prepare staging environment file
+        run: |
+          cp .env.example .env
+          echo "GIT_SHA=${GITHUB_SHA}" >> .env
+          echo "APP_VERSION=0.0.0-staging" >> .env
+
+      - name: Start database dependencies
+        run: docker compose -f infrastructure/docker/docker-compose.yml up -d postgres redis
+
+      - name: Wait for Postgres
+        run: |
+          for i in $(seq 1 30); do
+            if docker compose -f infrastructure/docker/docker-compose.yml exec -T postgres pg_isready -U rpm -d rpm; then
+              exit 0
+            fi
+            sleep 2
+          done
+          exit 1
+
+      - name: Install dependencies and migrate
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm prisma:generate
+          pnpm prisma:migrate:deploy
+
+      - name: Build and start staging stack
+        run: |
+          docker compose -f infrastructure/docker/docker-compose.yml build api web worker
+          docker compose -f infrastructure/docker/docker-compose.yml up -d api web worker
+
+      - name: Wait for API readiness
+        run: |
+          for i in $(seq 1 30); do
+            if curl -fsS http://localhost:3001/ready | grep -q '"status":"ok"'; then
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "API readiness check failed"
+          docker compose -f infrastructure/docker/docker-compose.yml logs api
+          exit 1
+
+      - name: Staging smoke test meta endpoints
+        run: |
+          curl -fsS http://localhost:3001/health
+          curl -fsS http://localhost:3001/v1/meta/version | tee version.json
+          curl -fsS http://localhost:3001/v1/meta/pagination-example | tee page.json
+          curl -fsS -H "X-Request-ID: staging-smoke" http://localhost:3001/v1/meta/ping | tee ping.json
+          grep -q '"service":"api"' version.json
+          grep -q '"data":\[\]' page.json
+          grep -q '"correlationId":"staging-smoke"' ping.json
+
+      - name: Staging idempotent echo smoke
+        run: |
+          KEY="staging-$(date +%s)"
+          curl -fsS -X POST http://localhost:3001/v1/meta/idempotent-echo \
+            -H "Content-Type: application/json" \
+            -H "Idempotency-Key: ${KEY}" \
+            -d '{"message":"staging-smoke"}' | tee echo1.json
+          curl -fsSi -X POST http://localhost:3001/v1/meta/idempotent-echo \
+            -H "Content-Type: application/json" \
+            -H "Idempotency-Key: ${KEY}" \
+            -d '{"message":"staging-smoke"}' | tee echo2.txt
+          grep -q '"message":"staging-smoke"' echo1.json
+          grep -qi 'idempotency-replayed: true' echo2.txt
+
+      - name: Tear down stack
+        if: always()
+        run: docker compose -f infrastructure/docker/docker-compose.yml down -v

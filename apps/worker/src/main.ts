@@ -11,7 +11,16 @@ async function bootstrap(): Promise<void> {
     logger: ['error', 'warn', 'log'],
   });
 
-  console.info(`Worker started (env=${config.nodeEnv})`);
+  console.info(
+    JSON.stringify({
+      level: 'info',
+      message: 'worker.started',
+      service: 'worker',
+      env: config.nodeEnv,
+      healthPort: config.healthPort,
+      timestamp: new Date().toISOString(),
+    }),
+  );
 
   const shutdown = async (): Promise<void> => {
     await app.close();

@@ -1,4 +1,13 @@
+'use client';
+
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { useEffect, useState } from 'react';
+
+import type { MeResponse } from '@rpm/contracts';
+
+import { logoutRequest } from '@/lib/auth-api';
+import { useAuthStore } from '@/state/auth-store';
 
 import type { ReactNode } from 'react';
 
@@ -8,12 +17,38 @@ const navItems = [
 ] as const;
 
 export function AppShell({ children }: { children: ReactNode }): ReactNode {
+  const router = useRouter();
+  const accessToken = useAuthStore((state) => state.accessToken);
+  const clearSession = useAuthStore((state) => state.clearSession);
+  const [me, setMe] = useState<MeResponse | null>(null);
+
+  useEffect(() => {
+    if (!accessToken) {
+      return;
+    }
+
+    void import('@/lib/auth-api').then(({ fetchMe }) =>
+      fetchMe(accessToken)
+        .then(setMe)
+        .catch(() => setMe(null)),
+    );
+  }, [accessToken]);
+
+  async function onLogout(): Promise<void> {
+    try {
+      await logoutRequest(accessToken);
+    } finally {
+      clearSession();
+      router.replace('/login');
+    }
+  }
+
   return (
     <div className="bg-background flex min-h-screen">
       <aside className="border-border bg-card hidden w-56 shrink-0 border-r md:flex md:flex-col">
         <div className="border-border border-b px-4 py-4">
-          <p className="text-sm font-semibold">Organization</p>
-          <p className="text-muted-foreground text-xs">Switcher skeleton</p>
+          <p className="text-sm font-semibold">{me?.organization?.displayName ?? 'Organization'}</p>
+          <p className="text-muted-foreground text-xs">{me?.user.email ?? 'Signed in'}</p>
         </div>
         <nav className="flex flex-1 flex-col gap-1 p-3" aria-label="Primary">
           {navItems.map((item) => (
@@ -30,7 +65,13 @@ export function AppShell({ children }: { children: ReactNode }): ReactNode {
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="border-border flex h-14 items-center justify-between border-b px-4 md:px-6">
           <p className="text-sm font-medium">Staff shell</p>
-          <p className="text-muted-foreground text-xs">Auth context not established</p>
+          <button
+            type="button"
+            className="text-muted-foreground hover:text-foreground text-xs underline-offset-4 hover:underline"
+            onClick={() => void onLogout()}
+          >
+            Sign out
+          </button>
         </header>
         <main className="flex-1 px-4 py-6 md:px-6">{children}</main>
       </div>

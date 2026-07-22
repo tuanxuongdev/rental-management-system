@@ -8,7 +8,7 @@ services:
       POSTGRES_PASSWORD: rpm
       POSTGRES_DB: rpm
     ports:
-      - '5432:5432'
+      - '5433:5432'
     volumes:
       - rpm_postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -41,6 +41,8 @@ services:
       DATABASE_URL: postgresql://rpm:rpm@postgres:5432/rpm?schema=public
       API_HOST: 0.0.0.0
       API_PORT: 3001
+      APP_VERSION: 0.0.0
+      GIT_SHA: compose-dev
     ports:
       - '3001:3001'
     depends_on:
@@ -57,6 +59,10 @@ services:
       - ../../.env.example
     environment:
       DATABASE_URL: postgresql://rpm:rpm@postgres:5432/rpm?schema=public
+      WORKER_HEALTH_HOST: 0.0.0.0
+      WORKER_HEALTH_PORT: 3002
+    ports:
+      - '3002:3002'
     depends_on:
       postgres:
         condition: service_healthy

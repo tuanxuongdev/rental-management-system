@@ -1,0 +1,32 @@
+/// Immutable audit event foundation.
+
+enum AuditOutcome {
+  SUCCESS
+  FAILURE
+}
+
+model AuditEvent {
+  id               String       @id @default(uuid()) @db.Uuid
+  tenantId         String?      @map("tenant_id") @db.Uuid
+  occurredAt       DateTime     @default(now()) @map("occurred_at")
+  recordedAt       DateTime     @default(now()) @map("recorded_at")
+  actorUserId      String?      @map("actor_user_id") @db.Uuid
+  sessionId        String?      @map("session_id") @db.Uuid
+  action           String
+  outcome          AuditOutcome
+  reasonCode       String?      @map("reason_code")
+  targetType       String?      @map("target_type")
+  targetId         String?      @map("target_id")
+  correlationId    String?      @map("correlation_id")
+  ipHash           String?      @map("ip_hash")
+  userAgentSummary String?      @map("user_agent_summary")
+  changeSummary    Json         @default("{}") @map("change_summary")
+  createdAt        DateTime     @default(now()) @map("created_at")
+
+  tenant Tenant? @relation(fields: [tenantId], references: [id])
+
+  @@index([tenantId, occurredAt(sort: Desc), id])
+  @@index([actorUserId, occurredAt(sort: Desc)])
+  @@index([action, occurredAt(sort: Desc)])
+  @@map("audit_events")
+}
