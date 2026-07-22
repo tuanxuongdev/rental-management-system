@@ -1,0 +1,33 @@
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 10
+    groups:
+      production-deps:
+        dependency-type: production
+      development-deps:
+        dependency-type: development
+    labels:
+      - dependencies
+      - chore
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    labels:
+      - dependencies
+      - ci
+
+  - package-ecosystem: docker
+    directory: /infrastructure/docker
+    schedule:
+      interval: monthly
+    labels:
+      - dependencies
+      - docker

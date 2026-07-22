@@ -1,0 +1,17 @@
+# Replace @tuanxuongdev with org teams (e.g. @org/platform) when ready.
+# Paths are relative to repository root.
+
+* @tuanxuongdev
+
+/apps/api/ @tuanxuongdev
+/apps/worker/ @tuanxuongdev
+/apps/web/ @tuanxuongdev
+/packages/contracts/ @tuanxuongdev
+/packages/ui/ @tuanxuongdev
+/prisma/ @tuanxuongdev
+/infrastructure/ @tuanxuongdev
+/.github/ @tuanxuongdev
+/docs/05-authentication.md @tuanxuongdev
+/docs/06-permission-system.md @tuanxuongdev
+/docs/03-database-design.md @tuanxuongdev
+/docs/04-api-specification.md @tuanxuongdev

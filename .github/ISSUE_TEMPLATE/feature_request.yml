@@ -1,0 +1,44 @@
+name: Feature request
+description: Propose a product or platform enhancement
+title: 'feat: '
+labels: ['enhancement']
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Feature work should align with approved docs under `/docs` and an active sprint plan.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What user or operator problem does this solve?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposal
+      description: Desired behavior (not implementation detail unless necessary)
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+  - type: dropdown
+    id: docs
+    attributes:
+      label: Documentation impact
+      options:
+        - Requires docs update before implementation
+        - Docs already cover this
+        - Unknown
+    validations:
+      required: true
+  - type: checkboxes
+    id: constraints
+    attributes:
+      label: Constraints acknowledged
+      options:
+        - label: I will not redesign architecture/API/DB/UI specs without an approved doc change
+          required: true

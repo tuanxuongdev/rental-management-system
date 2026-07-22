@@ -1,0 +1,78 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: rpm-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: rpm
+      POSTGRES_PASSWORD: rpm
+      POSTGRES_DB: rpm
+    ports:
+      - '5432:5432'
+    volumes:
+      - rpm_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U rpm -d rpm']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    container_name: rpm-redis
+    restart: unless-stopped
+    ports:
+      - '6379:6379'
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  api:
+    build:
+      context: ../..
+      dockerfile: infrastructure/docker/Dockerfile.api
+    container_name: rpm-api
+    restart: unless-stopped
+    env_file:
+      - ../../.env.example
+    environment:
+      DATABASE_URL: postgresql://rpm:rpm@postgres:5432/rpm?schema=public
+      API_HOST: 0.0.0.0
+      API_PORT: 3001
+    ports:
+      - '3001:3001'
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  worker:
+    build:
+      context: ../..
+      dockerfile: infrastructure/docker/Dockerfile.worker
+    container_name: rpm-worker
+    restart: unless-stopped
+    env_file:
+      - ../../.env.example
+    environment:
+      DATABASE_URL: postgresql://rpm:rpm@postgres:5432/rpm?schema=public
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  web:
+    build:
+      context: ../..
+      dockerfile: infrastructure/docker/Dockerfile.web
+    container_name: rpm-web
+    restart: unless-stopped
+    environment:
+      NEXT_PUBLIC_API_BASE_URL: http://localhost:3001
+    ports:
+      - '3000:3000'
+    depends_on:
+      - api
+
+volumes:
+  rpm_postgres_data:

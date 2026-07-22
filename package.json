@@ -1,0 +1,54 @@
+{
+  "name": "rental-property-management",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "packageManager": "pnpm@9.15.0",
+  "engines": {
+    "node": ">=20.11.0",
+    "pnpm": ">=9.0.0"
+  },
+  "scripts": {
+    "dev": "pnpm -r --parallel --filter @rpm/web --filter @rpm/api --filter @rpm/worker run dev",
+    "dev:web": "pnpm --filter @rpm/web dev",
+    "dev:api": "pnpm --filter @rpm/api dev",
+    "dev:worker": "pnpm --filter @rpm/worker dev",
+    "build": "pnpm --filter @rpm/contracts build && pnpm --filter @rpm/testing build && pnpm --filter @rpm/ui build && pnpm --filter @rpm/api build && pnpm --filter @rpm/worker build && pnpm --filter @rpm/web build",
+    "lint": "pnpm -r --filter @rpm/contracts --filter @rpm/testing --filter @rpm/ui --filter @rpm/api --filter @rpm/worker --filter @rpm/web run lint",
+    "typecheck": "pnpm -r --filter @rpm/contracts --filter @rpm/testing --filter @rpm/ui --filter @rpm/api --filter @rpm/worker --filter @rpm/web run typecheck",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "prisma:generate": "prisma generate --schema=prisma/schema",
+    "prisma:validate": "prisma validate --schema=prisma/schema",
+    "prepare": "husky",
+    "commitlint": "commitlint --edit",
+    "lint-staged": "lint-staged"
+  },
+  "devDependencies": {
+    "@commitlint/cli": "^19.6.1",
+    "@commitlint/config-conventional": "^19.6.0",
+    "@eslint/js": "^9.17.0",
+    "@types/node": "^22.10.2",
+    "eslint": "^9.17.0",
+    "eslint-config-prettier": "^9.1.0",
+    "eslint-plugin-import": "^2.31.0",
+    "globals": "^15.14.0",
+    "husky": "^9.1.7",
+    "lint-staged": "^15.2.11",
+    "prettier": "^3.4.2",
+    "prettier-plugin-tailwindcss": "^0.6.9",
+    "prisma": "^6.1.0",
+    "@prisma/client": "^6.1.0",
+    "typescript": "^5.7.2",
+    "typescript-eslint": "^8.18.2"
+  },
+  "lint-staged": {
+    "*.{js,jsx,ts,tsx,mjs,cjs}": [
+      "eslint --fix",
+      "prettier --write"
+    ],
+    "*.{json,md,yml,yaml,css}": [
+      "prettier --write"
+    ]
+  }
+}

@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Security vulnerability
+    url: https://github.com/tuanxuongdev/rental-management-system/security/advisories/new
+    about: Report security issues privately. See SECURITY.md for disclosure guidance.
+  - name: Product documentation
+    url: https://github.com/tuanxuongdev/rental-management-system/tree/main/docs
+    about: Read normative docs before requesting design changes.
