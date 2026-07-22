@@ -19,6 +19,7 @@ export class EmailService {
 
   async send(payload: EmailPayload): Promise<void> {
     if (this.config.auth.emailDeliveryMode === 'console') {
+      // Never log raw tokens/links — body may contain secrets.
       this.logger.log(
         JSON.stringify({
           level: 'info',
@@ -26,7 +27,7 @@ export class EmailService {
           to: payload.to,
           subject: payload.subject,
           correlationId: payload.correlationId,
-          bodyPreview: payload.body.slice(0, 120),
+          bodyLength: payload.body.length,
         }),
       );
       return;

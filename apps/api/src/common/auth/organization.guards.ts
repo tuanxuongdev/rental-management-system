@@ -4,6 +4,7 @@ import {
   type ExecutionContext,
   Injectable,
   NotFoundException,
+  UnauthorizedException,
 } from '@nestjs/common';
 
 import type { AuthActor } from './auth.types';
@@ -36,8 +37,15 @@ export class OrganizationPathGuard implements CanActivate {
     const actor = request.actor;
     const pathOrganizationId = request.params.organizationId;
 
-    if (pathOrganizationId === undefined || actor === undefined) {
+    if (pathOrganizationId === undefined) {
       return true;
+    }
+
+    if (actor === undefined) {
+      throw new UnauthorizedException({
+        message: 'Authentication required',
+        code: 'AUTH_REQUIRED',
+      });
     }
 
     if (actor.organizationId !== pathOrganizationId) {

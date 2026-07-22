@@ -15,6 +15,7 @@ import { JwtService } from '../../infrastructure/auth/jwt.service';
 import { RefreshCookieService } from '../../infrastructure/auth/refresh-cookie.service';
 import {
   PasswordHasherService,
+  SecretEncryptionService,
   TokenHashService,
 } from '../../infrastructure/crypto/crypto.services';
 import { EmailService } from '../../infrastructure/email/email.service';
@@ -73,6 +74,7 @@ describe.skipIf(!databaseAvailable)('Auth integration (Sprint-03)', () => {
   const transactions = new TransactionService(prisma as never);
   const passwords = new PasswordHasherService();
   const tokenHash = new TokenHashService(testApiConfig as never);
+  const secrets = new SecretEncryptionService(testApiConfig as never);
   const jwt = new JwtService(testApiConfig as never);
   const refreshCookies = new RefreshCookieService(testApiConfig as never);
   const rateLimit = new RateLimitService();
@@ -83,6 +85,7 @@ describe.skipIf(!databaseAvailable)('Auth integration (Sprint-03)', () => {
     transactions,
     passwords,
     tokenHash,
+    secrets,
     jwt,
     refreshCookies,
     rateLimit,
@@ -91,14 +94,7 @@ describe.skipIf(!databaseAvailable)('Auth integration (Sprint-03)', () => {
     testApiConfig,
   );
   const organizations = new OrganizationService(prisma as never, transactions, audit);
-  const invitations = new InvitationService(
-    prisma as never,
-    transactions,
-    tokenHash,
-    passwords,
-    email,
-    audit,
-  );
+  const invitations = new InvitationService(prisma as never, transactions, tokenHash, email, audit);
 
   beforeAll(async () => {
     await resetPlatformTables(prisma);
@@ -108,12 +104,12 @@ describe.skipIf(!databaseAvailable)('Auth integration (Sprint-03)', () => {
     await prisma.$disconnect();
   });
 
-  async function provisionVerifiedUser(email: string, password: string) {
+  async function provisionVerifiedUser(emailAddress: string, password: string) {
     const passwordHash = await passwords.hashPassword(password);
     return prisma.user.create({
       data: {
-        email,
-        normalizedEmail: email.toLowerCase(),
+        email: emailAddress,
+        normalizedEmail: emailAddress.toLowerCase(),
         status: UserStatus.ACTIVE,
         emailVerifiedAt: new Date(),
         credentials: {
@@ -189,10 +185,13 @@ describe.skipIf(!databaseAvailable)('Auth integration (Sprint-03)', () => {
     expect(auditEvents).toHaveLength(2);
   });
 
-  it('T03-08/T03-10: invite accept matching email; replay rejected', async () => {
+  it('T03-08/T03-09/T03-10: invite accept requires matching auth; replay rejected', async () => {
     await resetPlatformTables(prisma);
 
     const owner = await provisionVerifiedUser('owner@example.com', 'ValidPassword123!');
+    const invitee = await provisionVerifiedUser('colleague@example.com', 'ValidPassword123!');
+    const stranger = await provisionVerifiedUser('stranger@example.com', 'ValidPassword123!');
+
     const tenant = await prisma.tenant.create({
       data: {
         slug: 'acme',
@@ -221,16 +220,22 @@ describe.skipIf(!databaseAvailable)('Auth integration (Sprint-03)', () => {
       },
     });
 
+    await expect(
+      invitations.acceptInvitation(rawInviteToken, {}, stranger.id, stranger.email),
+    ).rejects.toMatchObject({
+      response: { code: 'INVITED_EMAIL_MISMATCH' },
+    });
+
     const firstAccept = await invitations.acceptInvitation(
       rawInviteToken,
-      { password: 'ValidPassword123!', displayName: 'Colleague' },
-      null,
-      null,
+      { displayName: 'Colleague' },
+      invitee.id,
+      invitee.email,
     );
     expect(firstAccept.membership.status).toBe('ACTIVE');
 
     await expect(
-      invitations.acceptInvitation(rawInviteToken, {}, null, null),
+      invitations.acceptInvitation(rawInviteToken, {}, invitee.id, invitee.email),
     ).rejects.toMatchObject({
       response: { code: 'INVITATION_ALREADY_USED' },
     });
@@ -244,7 +249,7 @@ describe.skipIf(!databaseAvailable)('Auth integration (Sprint-03)', () => {
         userId: user.id,
         methodType: MfaMethodType.TOTP,
         credentialId: randomUUID(),
-        encryptedSecret: 'JBSWY3DPEHPK3PXP',
+        encryptedSecret: secrets.encrypt('JBSWY3DPEHPK3PXP'),
         status: MfaMethodStatus.ACTIVE,
       },
     });
@@ -259,5 +264,26 @@ describe.skipIf(!databaseAvailable)('Auth integration (Sprint-03)', () => {
       challengeId: expect.any(String),
       methods: ['TOTP'],
     });
+  });
+
+  it('T03-15: logout revokes session so JWT is no longer usable via validator', async () => {
+    await resetPlatformTables(prisma);
+    const user = await provisionVerifiedUser('logout@example.com', 'ValidPassword123!');
+    const loginResult = await auth.login(
+      { email: 'logout@example.com', password: 'ValidPassword123!' },
+      mockRequest(),
+      mockResponse() as never,
+    );
+    expect('accessToken' in loginResult).toBe(true);
+    if (!('accessToken' in loginResult)) {
+      return;
+    }
+
+    await auth.logout(mockRequest(), mockResponse() as never, user.id, loginResult.session.id);
+
+    const session = await prisma.userSession.findUniqueOrThrow({
+      where: { id: loginResult.session.id },
+    });
+    expect(session.status).toBe('REVOKED');
   });
 });

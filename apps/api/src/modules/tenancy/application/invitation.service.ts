@@ -5,9 +5,8 @@ import {
   HttpStatus,
   Inject,
   Injectable,
-  UnauthorizedException,
 } from '@nestjs/common';
-import { InvitationPurpose, InvitationStatus, MembershipStatus, UserStatus } from '@prisma/client';
+import { InvitationPurpose, InvitationStatus, MembershipStatus } from '@prisma/client';
 
 import {
   type AcceptInvitationRequest,
@@ -16,11 +15,7 @@ import {
   type InvitationResponse,
 } from '@rpm/contracts';
 
-import {
-  normalizeEmail,
-  PasswordHasherService,
-  TokenHashService,
-} from '../../../infrastructure/crypto/crypto.services';
+import { normalizeEmail, TokenHashService } from '../../../infrastructure/crypto/crypto.services';
 import { EmailService } from '../../../infrastructure/email/email.service';
 import { TransactionService } from '../../../infrastructure/persistence/transaction.service';
 import { PrismaService } from '../../../infrastructure/prisma/prisma.module';
@@ -32,7 +27,6 @@ export class InvitationService {
     @Inject(PrismaService) private readonly prisma: PrismaService,
     @Inject(TransactionService) private readonly transactions: TransactionService,
     @Inject(TokenHashService) private readonly tokenHash: TokenHashService,
-    @Inject(PasswordHasherService) private readonly passwords: PasswordHasherService,
     @Inject(EmailService) private readonly email: EmailService,
     @Inject(AuditService) private readonly audit: AuditService,
   ) {}
@@ -102,9 +96,9 @@ export class InvitationService {
   async acceptInvitation(
     token: string,
     body: AcceptInvitationRequest,
-    authenticatedUserId: string | null,
-    authenticatedEmail: string | null,
-  ): Promise<InvitationAcceptanceResponse> {
+    authenticatedUserId: string,
+    authenticatedEmail: string,
+  ): Promise<Omit<InvitationAcceptanceResponse, 'accessToken' | 'expiresIn'>> {
     const tokenHash = this.tokenHash.hashToken(token);
     const invitation = await this.prisma.invitation.findUnique({
       where: { tokenHash },
@@ -125,7 +119,11 @@ export class InvitationService {
       });
     }
 
-    if (invitation.status !== InvitationStatus.PENDING || invitation.expiresAt <= new Date()) {
+    if (
+      invitation.status === InvitationStatus.REVOKED ||
+      invitation.status !== InvitationStatus.PENDING ||
+      invitation.expiresAt <= new Date()
+    ) {
       throw new GoneException({ message: 'Invitation has expired', code: 'TOKEN_EXPIRED' });
     }
 
@@ -136,84 +134,77 @@ export class InvitationService {
       });
     }
 
-    let userId = authenticatedUserId;
-
-    if (userId === null) {
-      if (body.password === undefined) {
-        throw new UnauthorizedException({
-          message: 'Authentication required',
-          code: 'AUTHENTICATION_REQUIRED',
-        });
-      }
-
-      const policy = this.passwords.validatePolicy(body.password);
-      if (!policy.valid) {
-        throw new HttpException(
-          { message: policy.message, code: 'PASSWORD_POLICY_VIOLATION' },
-          HttpStatus.UNPROCESSABLE_ENTITY,
-        );
-      }
-
-      const passwordHash = await this.passwords.hashPassword(body.password);
-      const createdUser = await this.transactions.run(async (tx) => {
-        const user = await tx.user.create({
-          data: {
-            email: invitation.email,
-            normalizedEmail: invitation.normalizedEmail,
-            displayName: body.displayName ?? invitation.email.split('@')[0] ?? 'User',
-            status: UserStatus.ACTIVE,
-            emailVerifiedAt: new Date(),
-          },
-        });
-
-        await tx.userCredential.create({
-          data: { userId: user.id, provider: 'LOCAL', passwordHash },
-        });
-
-        return user;
-      });
-      userId = createdUser.id;
-    } else if (
-      authenticatedEmail !== null &&
-      normalizeEmail(authenticatedEmail) !== invitation.normalizedEmail
-    ) {
+    if (normalizeEmail(authenticatedEmail) !== invitation.normalizedEmail) {
       throw new ConflictException({
-        message: 'Signed-in email does not match the invited email',
+        message:
+          'Signed-in email does not match the invited email. Sign out and use the invited account.',
         code: 'INVITED_EMAIL_MISMATCH',
       });
     }
 
     const membership = await this.transactions.run(async (tx) => {
+      const claimed = await tx.invitation.updateMany({
+        where: {
+          id: invitation.id,
+          status: InvitationStatus.PENDING,
+          expiresAt: { gt: new Date() },
+        },
+        data: { status: InvitationStatus.ACCEPTED, acceptedAt: new Date() },
+      });
+
+      if (claimed.count !== 1) {
+        throw new ConflictException({
+          message: 'Invitation has already been used',
+          code: 'INVITATION_ALREADY_USED',
+        });
+      }
+
       const existing = await tx.tenantMembership.findFirst({
         where: {
           tenantId: invitation.tenantId,
-          userId,
+          userId: authenticatedUserId,
           membershipType: 'WORKFORCE',
         },
       });
 
-      const activeMembership =
-        existing ??
-        (await tx.tenantMembership.create({
-          data: {
-            tenantId: invitation.tenantId,
-            userId,
-            membershipType: 'WORKFORCE',
-            status: MembershipStatus.ACTIVE,
-          },
-        }));
+      if (existing !== null) {
+        if (existing.status === MembershipStatus.SUSPENDED) {
+          throw new ConflictException({
+            message: 'Membership is suspended and cannot accept this invitation',
+            code: 'MEMBERSHIP_SUSPENDED',
+          });
+        }
 
-      await tx.invitation.update({
-        where: { id: invitation.id },
-        data: { status: InvitationStatus.ACCEPTED, acceptedAt: new Date() },
+        if (existing.status !== MembershipStatus.ACTIVE) {
+          return tx.tenantMembership.update({
+            where: { id: existing.id },
+            data: { status: MembershipStatus.ACTIVE },
+          });
+        }
+
+        return existing;
+      }
+
+      if (body.displayName !== undefined) {
+        await tx.user.update({
+          where: { id: authenticatedUserId },
+          data: { displayName: body.displayName },
+        });
+      }
+
+      return tx.tenantMembership.create({
+        data: {
+          tenantId: invitation.tenantId,
+          userId: authenticatedUserId,
+          membershipType: 'WORKFORCE',
+          status: MembershipStatus.ACTIVE,
+        },
       });
-
-      return activeMembership;
     });
 
     await this.audit.record({
       tenantId: invitation.tenantId,
-      actorUserId: userId,
+      actorUserId: authenticatedUserId,
       action: 'invitation.accept',
       outcome: 'SUCCESS',
       targetType: 'invitation',

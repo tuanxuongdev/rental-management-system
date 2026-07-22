@@ -5,6 +5,7 @@ import { JwtService } from '../../infrastructure/auth/jwt.service';
 import { RefreshCookieService } from '../../infrastructure/auth/refresh-cookie.service';
 import {
   PasswordHasherService,
+  SecretEncryptionService,
   TokenHashService,
 } from '../../infrastructure/crypto/crypto.services';
 import { EmailService } from '../../infrastructure/email/email.service';
@@ -27,6 +28,7 @@ import { AuthController, MeController } from './presentation/auth.controller';
     RefreshCookieService,
     PasswordHasherService,
     TokenHashService,
+    SecretEncryptionService,
     RateLimitService,
     EmailService,
   ],
@@ -36,6 +38,8 @@ import { AuthController, MeController } from './presentation/auth.controller';
     JwtService,
     PasswordHasherService,
     TokenHashService,
+    SecretEncryptionService,
+    RateLimitService,
     EmailService,
   ],
 })

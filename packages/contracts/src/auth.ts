@@ -96,7 +96,6 @@ export type PasswordForgotRequest = z.infer<typeof passwordForgotRequestSchema>;
 export const passwordResetRequestSchema = z.object({
   token: z.string().min(1).max(256),
   newPassword: z.string().min(12).max(128),
-  revokeAllSessions: z.boolean().optional(),
 });
 
 export type PasswordResetRequest = z.infer<typeof passwordResetRequestSchema>;

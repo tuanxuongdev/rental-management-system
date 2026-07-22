@@ -56,7 +56,6 @@ export type InvitationResponse = z.infer<typeof invitationResponseSchema>;
 
 export const acceptInvitationRequestSchema = z.object({
   displayName: z.string().min(1).max(200).optional(),
-  password: z.string().min(12).max(128).optional(),
 });
 
 export type AcceptInvitationRequest = z.infer<typeof acceptInvitationRequestSchema>;
@@ -72,6 +71,14 @@ export const invitationAcceptanceResponseSchema = z.object({
     displayName: z.string(),
     slug: z.string(),
   }),
+  accessToken: z.string().min(1),
+  expiresIn: z.number().int().positive(),
 });
 
 export type InvitationAcceptanceResponse = z.infer<typeof invitationAcceptanceResponseSchema>;
+
+/** Service-layer result before session token attachment. */
+export type InvitationAcceptanceResult = Omit<
+  InvitationAcceptanceResponse,
+  'accessToken' | 'expiresIn'
+>;

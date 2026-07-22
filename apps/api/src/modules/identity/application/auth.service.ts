@@ -41,6 +41,7 @@ import { RefreshCookieService } from '../../../infrastructure/auth/refresh-cooki
 import {
   normalizeEmail,
   PasswordHasherService,
+  SecretEncryptionService,
   TokenHashService,
 } from '../../../infrastructure/crypto/crypto.services';
 import { EmailService } from '../../../infrastructure/email/email.service';
@@ -64,6 +65,7 @@ export class AuthService {
     @Inject(TransactionService) private readonly transactions: TransactionService,
     @Inject(PasswordHasherService) private readonly passwords: PasswordHasherService,
     @Inject(TokenHashService) private readonly tokenHash: TokenHashService,
+    @Inject(SecretEncryptionService) private readonly secrets: SecretEncryptionService,
     @Inject(JwtService) private readonly jwt: JwtService,
     @Inject(RefreshCookieService) private readonly refreshCookies: RefreshCookieService,
     @Inject(RateLimitService) private readonly rateLimit: RateLimitService,
@@ -156,6 +158,13 @@ export class AuthService {
   ): Promise<LoginResponse> {
     this.rateLimit.assertWithinLimit(`mfa:ip:${request.ip ?? 'unknown'}`, 20, 60_000);
 
+    if (body.challengeId !== body.loginTransactionId) {
+      throw new UnauthorizedException({
+        message: 'MFA challenge is invalid or expired',
+        code: 'MFA_CHALLENGE_INVALID',
+      });
+    }
+
     const tokenRecord = await this.prisma.oneTimeToken.findFirst({
       where: {
         purpose: OneTimeTokenPurpose.LOGIN_MFA,
@@ -174,10 +183,23 @@ export class AuthService {
     }
 
     await this.verifyMfaProof(tokenRecord.userId, body);
-    await this.prisma.oneTimeToken.update({
-      where: { id: tokenRecord.id },
+
+    const consumed = await this.prisma.oneTimeToken.updateMany({
+      where: {
+        id: tokenRecord.id,
+        consumedAt: null,
+        revokedAt: null,
+        expiresAt: { gt: new Date() },
+      },
       data: { consumedAt: new Date() },
     });
+
+    if (consumed.count !== 1) {
+      throw new UnauthorizedException({
+        message: 'MFA challenge is invalid or expired',
+        code: 'MFA_CHALLENGE_INVALID',
+      });
+    }
 
     const pending = this.parsePendingLoginContext(tokenRecord.targetEmail);
 
@@ -223,10 +245,18 @@ export class AuthService {
   }
 
   private async verifyMfaProof(userId: string, body: MfaChallengeRequest): Promise<void> {
+    if (body.method === 'RECOVERY_CODE') {
+      // Recovery-code enrollment/consumption is deferred until a real multi-code store exists.
+      throw new UnauthorizedException({
+        message: 'MFA method not available',
+        code: 'MFA_METHOD_UNSUPPORTED',
+      });
+    }
+
     const method = await this.prisma.mfaMethod.findFirst({
       where: {
         userId,
-        methodType: body.method === 'TOTP' ? MfaMethodType.TOTP : MfaMethodType.RECOVERY_CODE,
+        methodType: MfaMethodType.TOTP,
         status: MfaMethodStatus.ACTIVE,
       },
     });
@@ -238,30 +268,15 @@ export class AuthService {
       });
     }
 
-    if (body.method === 'TOTP') {
-      const totp = new TOTP({ secret: method.encryptedSecret });
-      const delta = totp.validate({ token: body.proof, window: 1 });
-      if (delta === null) {
-        throw new UnauthorizedException({
-          message: GENERIC_AUTH_FAILURE_MESSAGE,
-          code: 'CREDENTIALS_INVALID',
-        });
-      }
-      return;
-    }
-
-    const recoveryValid = this.tokenHash.hashToken(body.proof) === method.encryptedSecret;
-    if (!recoveryValid) {
+    const secret = this.secrets.decrypt(method.encryptedSecret);
+    const totp = new TOTP({ secret });
+    const delta = totp.validate({ token: body.proof, window: 1 });
+    if (delta === null) {
       throw new UnauthorizedException({
         message: GENERIC_AUTH_FAILURE_MESSAGE,
         code: 'CREDENTIALS_INVALID',
       });
     }
-
-    await this.prisma.mfaMethod.update({
-      where: { id: method.id },
-      data: { status: MfaMethodStatus.DISABLED },
-    });
   }
 
   private async completeLogin(
@@ -543,14 +558,26 @@ export class AuthService {
       const rawToken = this.tokenHash.generateOpaqueToken();
       const expiresAt = new Date(Date.now() + 30 * 60 * 1000);
 
-      await this.prisma.oneTimeToken.create({
-        data: {
-          userId: user.id,
-          purpose: OneTimeTokenPurpose.PASSWORD_RESET,
-          targetEmail: normalizedEmail,
-          tokenHash: this.tokenHash.hashToken(rawToken),
-          expiresAt,
-        },
+      await this.transactions.run(async (tx) => {
+        await tx.oneTimeToken.updateMany({
+          where: {
+            userId: user.id,
+            purpose: OneTimeTokenPurpose.PASSWORD_RESET,
+            consumedAt: null,
+            revokedAt: null,
+          },
+          data: { revokedAt: new Date() },
+        });
+
+        await tx.oneTimeToken.create({
+          data: {
+            userId: user.id,
+            purpose: OneTimeTokenPurpose.PASSWORD_RESET,
+            targetEmail: normalizedEmail,
+            tokenHash: this.tokenHash.hashToken(rawToken),
+            expiresAt,
+          },
+        });
       });
 
       await this.email.send({
@@ -632,21 +659,17 @@ export class AuthService {
         });
       }
 
-      if (body.revokeAllSessions !== false) {
-        await tx.user.update({
-          where: { id: tokenRecord.userId },
-          data: { tokenVersion: { increment: 1 } },
-        });
-      }
+      await tx.user.update({
+        where: { id: tokenRecord.userId },
+        data: { tokenVersion: { increment: 1 } },
+      });
     });
 
-    if (body.revokeAllSessions !== false) {
-      const sessions = await this.prisma.userSession.findMany({
-        where: { userId: tokenRecord.userId, status: SessionStatus.ACTIVE },
-      });
-      for (const session of sessions) {
-        await this.revokeSession(session.id, 'PASSWORD_RESET');
-      }
+    const sessions = await this.prisma.userSession.findMany({
+      where: { userId: tokenRecord.userId, status: SessionStatus.ACTIVE },
+    });
+    for (const session of sessions) {
+      await this.revokeSession(session.id, 'PASSWORD_RESET');
     }
 
     await this.audit.record({
@@ -771,19 +794,9 @@ export class AuthService {
     this.rateLimit.assertWithinLimit(`verify-resend:${normalizeEmail(body.email)}`, 3, 60_000);
 
     const normalizedEmail = normalizeEmail(body.email);
-    let user = await this.prisma.user.findUnique({ where: { normalizedEmail } });
+    const user = await this.prisma.user.findUnique({ where: { normalizedEmail } });
 
-    if (user === null) {
-      user = await this.prisma.user.create({
-        data: {
-          email: body.email.trim(),
-          normalizedEmail,
-          status: UserStatus.PENDING_VERIFICATION,
-        },
-      });
-    }
-
-    if (user.emailVerifiedAt === null) {
+    if (user !== null && user.emailVerifiedAt === null) {
       const rawToken = this.tokenHash.generateOpaqueToken();
       await this.prisma.oneTimeToken.create({
         data: {

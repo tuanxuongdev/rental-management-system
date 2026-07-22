@@ -48,7 +48,11 @@ export class JwtAuthGuard implements CanActivate {
 
     try {
       const claims = await this.jwt.verifyAccessToken(token);
-      await this.authUserValidator.assertActiveUser(claims.sub, claims.token_version);
+      const user = await this.authUserValidator.assertActiveUser(
+        claims.sub,
+        claims.token_version,
+        claims.sid,
+      );
 
       request.actor = {
         userId: claims.sub,
@@ -56,7 +60,7 @@ export class JwtAuthGuard implements CanActivate {
         organizationId: claims.org_id,
         membershipId: claims.membership_id,
         tokenVersion: claims.token_version,
-        email: '',
+        email: user.email,
       };
       request.authToken = token;
 

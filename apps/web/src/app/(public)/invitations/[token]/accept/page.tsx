@@ -47,15 +47,13 @@ export default function InvitationAcceptPage() {
         return;
       }
 
-      const result = (await acceptInvitationRequest(
+      const result = await acceptInvitationRequest(
         token,
         { displayName: displayName.length > 0 ? displayName : undefined },
         activeToken,
-      )) as { accessToken?: string };
+      );
 
-      if (result.accessToken) {
-        setAccessToken(result.accessToken);
-      }
+      setAccessToken(result.accessToken);
 
       router.push('/app');
     } catch (caught) {
@@ -70,7 +68,8 @@ export default function InvitationAcceptPage() {
       <form className="bg-card space-y-4 rounded-lg border p-6 shadow-sm" onSubmit={onAccept}>
         <h1 className="text-2xl font-semibold">Accept invitation</h1>
         <p className="text-muted-foreground text-sm">
-          Sign in with the invited email address to join the Organization.
+          Sign in with the invited email address to join the Organization. New accounts must verify
+          email and set a password before accepting.
         </p>
         {needsLogin ? (
           <>

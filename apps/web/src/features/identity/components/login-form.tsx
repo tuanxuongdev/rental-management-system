@@ -11,6 +11,7 @@ import { useAuthStore } from '../../../state/auth-store';
 export function LoginForm() {
   const router = useRouter();
   const setAccessToken = useAuthStore((state) => state.setAccessToken);
+  const setPendingMfa = useAuthStore((state) => state.setPendingMfa);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [organizationId, setOrganizationId] = useState('');
@@ -30,12 +31,15 @@ export function LoginForm() {
       });
 
       if ('challengeId' in result) {
-        router.push(
-          `/mfa?challengeId=${encodeURIComponent(result.challengeId)}&loginTransactionId=${encodeURIComponent(result.loginTransactionId)}`,
-        );
+        setPendingMfa({
+          challengeId: result.challengeId,
+          loginTransactionId: result.loginTransactionId,
+        });
+        router.push('/mfa');
         return;
       }
 
+      setPendingMfa(null);
       setAccessToken(result.accessToken);
       router.push(result.organization ? '/app' : '/onboarding/organization');
     } catch (caught) {

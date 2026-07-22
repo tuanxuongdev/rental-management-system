@@ -1,36 +1,54 @@
 'use client';
 
-import { useRouter, useSearchParams } from 'next/navigation';
-import { Suspense, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { useEffect, useState } from 'react';
 
 import { Button, Input, Label } from '@rpm/ui';
 
 import { AuthApiError, completeMfaChallenge } from '../../../lib/auth-api';
 import { useAuthStore } from '../../../state/auth-store';
 
-function MfaChallengeForm() {
+export default function MfaChallengePage() {
   const router = useRouter();
-  const params = useSearchParams();
+  const pendingMfa = useAuthStore((state) => state.pendingMfa);
+  const setPendingMfa = useAuthStore((state) => state.setPendingMfa);
   const setAccessToken = useAuthStore((state) => state.setAccessToken);
-  const challengeId = params.get('challengeId') ?? '';
-  const loginTransactionId = params.get('loginTransactionId') ?? '';
   const [proof, setProof] = useState('');
   const [error, setError] = useState<string | null>(null);
 
+  useEffect(() => {
+    if (pendingMfa === null) {
+      router.replace('/login');
+    }
+  }, [pendingMfa, router]);
+
   async function onSubmit(event: React.FormEvent) {
     event.preventDefault();
+    if (pendingMfa === null) {
+      return;
+    }
+
     try {
       const result = await completeMfaChallenge({
-        challengeId,
-        loginTransactionId,
+        challengeId: pendingMfa.challengeId,
+        loginTransactionId: pendingMfa.loginTransactionId,
         method: 'TOTP',
         proof,
       });
+      setPendingMfa(null);
       setAccessToken(result.accessToken);
       router.push(result.organization ? '/app' : '/onboarding/organization');
     } catch (caught) {
       setError(caught instanceof AuthApiError ? caught.message : 'Verification failed.');
     }
+  }
+
+  if (pendingMfa === null) {
+    return (
+      <main className="mx-auto flex min-h-screen max-w-md items-center justify-center px-4 py-8">
+        <p className="text-muted-foreground text-sm">Redirecting to sign in…</p>
+      </main>
+    );
   }
 
   return (
@@ -43,29 +61,20 @@ function MfaChallengeForm() {
             id="proof"
             inputMode="numeric"
             required
+            autoComplete="one-time-code"
             value={proof}
             onChange={(event) => setProof(event.target.value)}
           />
         </div>
-        {error ? <p role="alert">{error}</p> : null}
+        {error ? (
+          <p className="text-sm text-red-600" role="alert">
+            {error}
+          </p>
+        ) : null}
         <Button type="submit" className="w-full">
           Verify
         </Button>
       </form>
     </main>
-  );
-}
-
-export default function MfaChallengePage() {
-  return (
-    <Suspense
-      fallback={
-        <main className="mx-auto flex min-h-screen max-w-md items-center justify-center px-4 py-8">
-          <p className="text-muted-foreground text-sm">Loading…</p>
-        </main>
-      }
-    >
-      <MfaChallengeForm />
-    </Suspense>
   );
 }

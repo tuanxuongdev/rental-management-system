@@ -16,23 +16,27 @@ export class RefreshCookieService {
     return cookies?.[REFRESH_COOKIE_NAME];
   }
 
-  setRefreshCookie(response: Response, token: string, expiresAt: Date): void {
-    response.cookie(REFRESH_COOKIE_NAME, token, {
+  private cookieOptions(expires?: Date) {
+    const secure =
+      this.config.nodeEnv !== 'development' && this.config.nodeEnv !== 'test'
+        ? true
+        : this.config.auth.cookieSameSite === 'none';
+
+    return {
       httpOnly: true,
-      secure: this.config.nodeEnv === 'production',
+      secure,
       sameSite: this.config.auth.cookieSameSite,
       path: this.config.auth.refreshCookiePath,
-      expires: expiresAt,
-    });
+      ...(expires !== undefined ? { expires } : {}),
+    };
+  }
+
+  setRefreshCookie(response: Response, token: string, expiresAt: Date): void {
+    response.cookie(REFRESH_COOKIE_NAME, token, this.cookieOptions(expiresAt));
   }
 
   clearRefreshCookie(response: Response): void {
-    response.clearCookie(REFRESH_COOKIE_NAME, {
-      httpOnly: true,
-      secure: this.config.nodeEnv === 'production',
-      sameSite: this.config.auth.cookieSameSite,
-      path: this.config.auth.refreshCookiePath,
-    });
+    response.clearCookie(REFRESH_COOKIE_NAME, this.cookieOptions());
   }
 }
 

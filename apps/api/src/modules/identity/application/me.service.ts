@@ -1,5 +1,5 @@
 import { Inject, Injectable, NotFoundException } from '@nestjs/common';
-import { MembershipStatus, UserStatus } from '@prisma/client';
+import { MembershipStatus, SessionStatus, UserStatus } from '@prisma/client';
 
 import { type MeResponse } from '@rpm/contracts';
 
@@ -17,7 +17,7 @@ export class MeService {
       },
     });
 
-    if (session === null || session.userId !== userId) {
+    if (session === null || session.userId !== userId || session.status !== SessionStatus.ACTIVE) {
       throw new NotFoundException({ message: 'Session not found', code: 'RESOURCE_NOT_FOUND' });
     }
 

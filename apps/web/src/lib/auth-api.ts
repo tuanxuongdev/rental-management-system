@@ -174,16 +174,24 @@ export async function createOrganizationRequest(
 
 export async function acceptInvitationRequest(
   token: string,
-  body: { displayName?: string; password?: string },
-  accessToken?: string | null,
-): Promise<unknown> {
+  body: { displayName?: string },
+  accessToken: string,
+): Promise<{
+  accessToken: string;
+  expiresIn: number;
+  membership: { id: string; organizationId: string; status: string };
+}> {
   const path = INVITATION_ACCEPT_PATH.replace('{token}', encodeURIComponent(token));
   const response = await authFetch(
     path,
     { method: 'POST', body: JSON.stringify(body) },
-    accessToken ?? null,
+    accessToken,
   );
-  return response.json();
+  return response.json() as Promise<{
+    accessToken: string;
+    expiresIn: number;
+    membership: { id: string; organizationId: string; status: string };
+  }>;
 }
 
 export { REFRESH_COOKIE_NAME, apiBaseUrl };
