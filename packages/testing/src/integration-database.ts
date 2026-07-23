@@ -29,6 +29,15 @@ export async function isDatabaseReachable(): Promise<boolean> {
 }
 
 export async function resetPlatformTables(prisma: PrismaClient): Promise<void> {
+  // Sprint-07 documents / residents first (FK to parties/properties/tenants)
+  await prisma.documentLink.deleteMany();
+  await prisma.documentVersion.deleteMany();
+  await prisma.document.deleteMany();
+  await prisma.doNotRentFlag.deleteMany();
+  await prisma.waitlistEntry.deleteMany();
+  await prisma.partyIdentifier.deleteMany();
+  await prisma.residentProfile.deleteMany();
+
   // Import/export first (FK to tenants)
   await prisma.importJobRow.deleteMany();
   await prisma.importJob.deleteMany();

@@ -80,9 +80,7 @@ export function UnitsList(): React.JSX.Element {
   }
 
   const emptyMessage =
-    propertyScope !== 'ALL'
-      ? 'No units in the selected property scope.'
-      : 'No units yet.';
+    propertyScope !== 'ALL' ? 'No units in the selected property scope.' : 'No units yet.';
 
   return (
     <div className="space-y-4">

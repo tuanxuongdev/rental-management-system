@@ -1,0 +1,17 @@
+import { PERMISSION_KEYS } from '@rpm/contracts';
+
+export { hasPermission, canMutate } from '@/features/admin/utils/permissions';
+
+export const RESIDENT_PERMISSIONS = {
+  list: PERMISSION_KEYS.RESIDENTS_LIST,
+  view: PERMISSION_KEYS.RESIDENTS_VIEW,
+  create: PERMISSION_KEYS.RESIDENTS_CREATE,
+  update: PERMISSION_KEYS.RESIDENTS_UPDATE,
+  archive: PERMISSION_KEYS.RESIDENTS_ARCHIVE,
+  sensitiveDataView: PERMISSION_KEYS.RESIDENTS_SENSITIVE_DATA_VIEW,
+  doNotRentManage: PERMISSION_KEYS.RESIDENTS_DO_NOT_RENT_MANAGE,
+  waitlistList: PERMISSION_KEYS.WAITLIST_LIST,
+  waitlistCreate: PERMISSION_KEYS.WAITLIST_CREATE,
+  waitlistUpdate: PERMISSION_KEYS.WAITLIST_UPDATE,
+  waitlistRemove: PERMISSION_KEYS.WAITLIST_REMOVE,
+} as const;

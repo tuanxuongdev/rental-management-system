@@ -49,9 +49,7 @@ export function UnitsExportButton(): React.JSX.Element | null {
         }
         return;
       }
-      setError(
-        `Export job ${job.status}. CSV is not inline; check Operations for job ${job.id}.`,
-      );
+      setError(`Export job ${job.status}. CSV is not inline; check Operations for job ${job.id}.`);
     } catch (caught) {
       setError(caught instanceof AuthApiError ? caught.message : 'Unable to export inventory.');
     }

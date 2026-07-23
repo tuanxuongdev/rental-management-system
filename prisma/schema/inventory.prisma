@@ -73,6 +73,9 @@ model Property {
   accessGrants         PropertyAccessGrant[]
   statusHistory        InventoryStatusHistory[]
   ratePlans            RatePlan[]
+  residentProfiles     ResidentProfile[]
+  waitlistEntries      WaitlistEntry[]
+  documentLinks        DocumentLink[]
 
   @@index([tenantId, status])
   @@index([tenantId, code])
@@ -159,6 +162,7 @@ model Unit {
   beds          Bed[]
   unitAmenities UnitAmenity[]
   statusHistory InventoryStatusHistory[]
+  waitlistEntries WaitlistEntry[]
 
   @@index([tenantId, propertyId, status])
   @@index([tenantId, propertyId, code])

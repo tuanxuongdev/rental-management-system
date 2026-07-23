@@ -268,6 +268,22 @@ export const PERMISSION_CATALOG: readonly PermissionSeed[] = [
   seed(P.IMPORTS_INVENTORY, 'imports', 'Run inventory imports', 'HIGH'),
   seed(P.EXPORTS_INVENTORY, 'exports', 'Export inventory', 'MEDIUM'),
   seed(P.OPERATIONS_READ, 'operations', 'View operations center jobs', 'LOW'),
+  seed(P.RESIDENTS_LIST, 'residents', 'List residents'),
+  seed(P.RESIDENTS_VIEW, 'residents', 'View resident detail'),
+  seed(P.RESIDENTS_CREATE, 'residents', 'Create residents', 'MEDIUM'),
+  seed(P.RESIDENTS_UPDATE, 'residents', 'Update residents', 'MEDIUM'),
+  seed(P.RESIDENTS_ARCHIVE, 'residents', 'Archive residents', 'HIGH'),
+  seed(P.RESIDENTS_SENSITIVE_DATA_VIEW, 'residents', 'View resident sensitive PII', 'HIGH'),
+  seed(P.RESIDENTS_DO_NOT_RENT_MANAGE, 'residents', 'Manage do-not-rent flags', 'HIGH'),
+  seed(P.WAITLIST_LIST, 'waitlist', 'List waitlist entries'),
+  seed(P.WAITLIST_VIEW, 'waitlist', 'View waitlist entry detail'),
+  seed(P.WAITLIST_CREATE, 'waitlist', 'Create waitlist entries', 'MEDIUM'),
+  seed(P.WAITLIST_UPDATE, 'waitlist', 'Update waitlist entries', 'MEDIUM'),
+  seed(P.WAITLIST_REMOVE, 'waitlist', 'Remove waitlist entries', 'MEDIUM'),
+  seed(P.DOCUMENTS_LIST, 'documents', 'List documents'),
+  seed(P.DOCUMENTS_VIEW, 'documents', 'View document metadata and download URLs'),
+  seed(P.DOCUMENTS_UPLOAD, 'documents', 'Upload documents', 'MEDIUM'),
+  seed(P.DOCUMENTS_DELETE, 'documents', 'Delete documents', 'HIGH'),
   {
     key: P.PLATFORM_ORGANIZATIONS_LIST,
     domain: 'platform',
@@ -337,6 +353,12 @@ const AUDITOR_KEYS = [
   P.MANAGEMENT_AGREEMENTS_VIEW,
   P.OCCUPANCY_VIEW,
   P.OPERATIONS_READ,
+  P.RESIDENTS_LIST,
+  P.RESIDENTS_VIEW,
+  P.WAITLIST_LIST,
+  P.WAITLIST_VIEW,
+  P.DOCUMENTS_LIST,
+  P.DOCUMENTS_VIEW,
 ] as const;
 
 /** Property Manager: inventory + occupancy on assigned properties (not org admin). */
@@ -364,6 +386,20 @@ const PROPERTY_MANAGER_KEYS = [
   P.MANAGEMENT_AGREEMENTS_VIEW,
   P.OPERATIONS_READ,
   P.EXPORTS_INVENTORY,
+  P.RESIDENTS_LIST,
+  P.RESIDENTS_VIEW,
+  P.RESIDENTS_CREATE,
+  P.RESIDENTS_UPDATE,
+  P.RESIDENTS_ARCHIVE,
+  P.WAITLIST_LIST,
+  P.WAITLIST_VIEW,
+  P.WAITLIST_CREATE,
+  P.WAITLIST_UPDATE,
+  P.WAITLIST_REMOVE,
+  P.DOCUMENTS_LIST,
+  P.DOCUMENTS_VIEW,
+  P.DOCUMENTS_UPLOAD,
+  P.DOCUMENTS_DELETE,
 ] as const;
 
 export const SYSTEM_ROLE_CATALOG: readonly SystemRoleSeed[] = [
@@ -450,6 +486,15 @@ export const MUTATION_PERMISSION_PREFIXES = [
   'management_agreements.terminate',
   'imports.inventory',
   'exports.inventory',
+  'residents.create',
+  'residents.update',
+  'residents.archive',
+  'residents.do_not_rent.manage',
+  'waitlist.create',
+  'waitlist.update',
+  'waitlist.remove',
+  'documents.upload',
+  'documents.delete',
 ] as const;
 
 export function isReadOnlyPermissionSet(permissionKeys: readonly string[]): boolean {

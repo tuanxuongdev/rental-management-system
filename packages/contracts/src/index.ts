@@ -107,3 +107,5 @@ export * from './rbac';
 export * from './inventory';
 export * from './parties';
 export * from './imports';
+export * from './residents';
+export * from './documents';

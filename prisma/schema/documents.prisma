@@ -1,0 +1,88 @@
+/// Documents metadata, versions, and typed links (Sprint-07).
+
+enum DocumentStatus {
+  UPLOADING
+  SCANNING
+  READY
+  REJECTED
+  DELETED
+}
+
+enum DocumentVisibility {
+  STAFF
+  RESIDENT_SHARED
+  OWNER_SHARED
+  RESTRICTED
+}
+
+model Document {
+  id             String             @id @default(uuid()) @db.Uuid
+  tenantId       String             @map("tenant_id") @db.Uuid
+  title          String
+  category       String
+  visibility     DocumentVisibility @default(STAFF)
+  retentionClass String             @default("STANDARD") @map("retention_class")
+  status         DocumentStatus     @default(UPLOADING)
+  legalHold      Boolean            @default(false) @map("legal_hold")
+  currentVersionId String?          @map("current_version_id") @db.Uuid
+  createdByUserId String            @map("created_by_user_id") @db.Uuid
+  version        Int                @default(1)
+  createdAt      DateTime           @default(now()) @map("created_at")
+  updatedAt      DateTime           @updatedAt @map("updated_at")
+  deletedAt      DateTime?          @map("deleted_at")
+
+  tenant   Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  versions DocumentVersion[]
+  links    DocumentLink[]
+
+  @@index([tenantId, status])
+  @@index([tenantId, category])
+  @@map("documents")
+}
+
+model DocumentVersion {
+  id               String         @id @default(uuid()) @db.Uuid
+  tenantId         String         @map("tenant_id") @db.Uuid
+  documentId       String         @map("document_id") @db.Uuid
+  versionNumber    Int            @map("version_number")
+  objectKey        String         @map("object_key")
+  fileName         String         @map("file_name")
+  mimeType         String         @map("mime_type")
+  sizeBytes        Int            @map("size_bytes")
+  checksumSha256   String         @map("checksum_sha256")
+  scanStatus       DocumentStatus @default(UPLOADING) @map("scan_status")
+  scanDetail       String?        @map("scan_detail")
+  changeReason     String?        @map("change_reason")
+  createdAt        DateTime       @default(now()) @map("created_at")
+  updatedAt        DateTime       @updatedAt @map("updated_at")
+
+  document Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  @@unique([documentId, versionNumber])
+  @@unique([objectKey])
+  @@index([tenantId, documentId])
+  @@map("document_versions")
+}
+
+model DocumentLink {
+  id         String   @id @default(uuid()) @db.Uuid
+  tenantId   String   @map("tenant_id") @db.Uuid
+  documentId String   @map("document_id") @db.Uuid
+  linkType   String   @map("link_type")
+  /// Exactly one target FK is set (enforced in application; expand CHECK in SQL).
+  partyId    String?  @map("party_id") @db.Uuid
+  propertyId String?  @map("property_id") @db.Uuid
+  /// Reserved for Sprint-08 leases (nullable until leasing schema exists).
+  leaseId    String?  @map("lease_id") @db.Uuid
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  document Document  @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  party    Party?    @relation(fields: [partyId], references: [id], onDelete: Cascade)
+  property Property? @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+
+  @@unique([documentId, linkType, partyId, propertyId, leaseId])
+  @@index([tenantId, partyId])
+  @@index([tenantId, propertyId])
+  @@map("document_links")
+}

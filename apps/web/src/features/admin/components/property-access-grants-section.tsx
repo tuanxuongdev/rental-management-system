@@ -123,7 +123,7 @@ export function PropertyAccessGrantsSection({
           {activeGrants.map((grant) => (
             <li
               key={grant.id}
-              className="flex flex-wrap items-center justify-between gap-2 border-b border-border py-2 text-sm"
+              className="border-border flex flex-wrap items-center justify-between gap-2 border-b py-2 text-sm"
             >
               <span>
                 {grant.scopeType === 'ALL_PROPERTIES'

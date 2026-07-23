@@ -245,7 +245,6 @@ async function main(): Promise<void> {
 
 main()
   .catch((error: unknown) => {
-    // eslint-disable-next-line no-console -- seed CLI output
     console.error(error);
     process.exitCode = 1;
   })

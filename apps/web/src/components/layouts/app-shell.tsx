@@ -7,8 +7,10 @@ import { useMemo, type ReactNode } from 'react';
 import type { MeResponse } from '@rpm/contracts';
 
 import { OrganizationSwitcher, ReadOnlyBanner, SupportAccessBanner, useMe } from '@/features/admin';
+import { DOCUMENT_PERMISSIONS } from '@/features/documents';
 import { IMPORT_PERMISSIONS, hasPermission } from '@/features/imports';
 import { PropertyScopeSelector } from '@/features/inventory';
+import { RESIDENT_PERMISSIONS } from '@/features/residents';
 import { logoutRequest } from '@/lib/auth-api';
 import { useAuthStore } from '@/state/auth-store';
 
@@ -44,6 +46,30 @@ function buildAdminNav(me: MeResponse | undefined) {
   return items;
 }
 
+function buildPeopleNav(me: MeResponse | undefined) {
+  const items: { href: string; label: string }[] = [];
+  if (hasPermission(me, RESIDENT_PERMISSIONS.list)) {
+    items.push({ href: '/app/residents', label: 'Residents' });
+  }
+  if (hasPermission(me, RESIDENT_PERMISSIONS.waitlistList)) {
+    items.push({ href: '/app/residents/waitlist', label: 'Waitlist' });
+  }
+  if (hasPermission(me, DOCUMENT_PERMISSIONS.list)) {
+    items.push({ href: '/app/documents', label: 'Documents' });
+  }
+  return items;
+}
+
+function isPeopleNavActive(pathname: string, href: string): boolean {
+  if (href === '/app/residents') {
+    return (
+      pathname === '/app/residents' ||
+      (pathname.startsWith('/app/residents/') && !pathname.startsWith('/app/residents/waitlist'))
+    );
+  }
+  return pathname === href || pathname.startsWith(`${href}/`);
+}
+
 export function AppShell({ children }: { children: ReactNode }): ReactNode {
   const router = useRouter();
   const pathname = usePathname();
@@ -54,6 +80,7 @@ export function AppShell({ children }: { children: ReactNode }): ReactNode {
   const me = meQuery.data;
 
   const adminNav = useMemo(() => buildAdminNav(me), [me]);
+  const peopleNav = useMemo(() => buildPeopleNav(me), [me]);
   const showOperations = hasPermission(me, IMPORT_PERMISSIONS.operationsRead);
 
   async function onLogout(): Promise<void> {
@@ -99,6 +126,27 @@ export function AppShell({ children }: { children: ReactNode }): ReactNode {
               </Link>
             );
           })}
+
+          {peopleNav.length > 0 ? (
+            <>
+              <p className="text-muted-foreground px-3 pb-1 pt-4 text-xs font-semibold uppercase tracking-wide">
+                People
+              </p>
+              {peopleNav.map((item) => {
+                const active = isPeopleNavActive(pathname, item.href);
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    className={navClassName(active)}
+                    aria-current={active ? 'page' : undefined}
+                  >
+                    {item.label}
+                  </Link>
+                );
+              })}
+            </>
+          ) : null}
 
           {showOperations ? (
             <>

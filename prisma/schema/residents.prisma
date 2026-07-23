@@ -1,0 +1,121 @@
+/// Resident profiles, waitlist, do-not-rent (Sprint-07). Extends parties.
+
+enum ResidentStatus {
+  PROSPECT
+  ACTIVE
+  FORMER
+  ARCHIVED
+}
+
+enum WaitlistEntryStatus {
+  OPEN
+  OFFERED
+  CLOSED
+  EXPIRED
+  REMOVED
+}
+
+enum DoNotRentFlagStatus {
+  ACTIVE
+  CLEARED
+  EXPIRED
+}
+
+model ResidentProfile {
+  id                   String         @id @default(uuid()) @db.Uuid
+  tenantId             String         @map("tenant_id") @db.Uuid
+  partyId              String         @unique @map("party_id") @db.Uuid
+  status               ResidentStatus @default(PROSPECT)
+  preferredPropertyId  String?        @map("preferred_property_id") @db.Uuid
+  dateOfBirth          DateTime?      @map("date_of_birth") @db.Date
+  notes                String?
+  retentionClass       String         @default("STANDARD") @map("retention_class")
+  legalHold            Boolean        @default(false) @map("legal_hold")
+  version              Int            @default(1)
+  createdAt            DateTime       @default(now()) @map("created_at")
+  updatedAt            DateTime       @updatedAt @map("updated_at")
+  deletedAt            DateTime?      @map("deleted_at")
+
+  tenant            Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  party             Party      @relation(fields: [partyId], references: [id], onDelete: Cascade)
+  preferredProperty Property?  @relation(fields: [preferredPropertyId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId, status])
+  @@index([tenantId, preferredPropertyId])
+  @@map("resident_profiles")
+}
+
+model PartyIdentifier {
+  id                 String   @id @default(uuid()) @db.Uuid
+  tenantId           String   @map("tenant_id") @db.Uuid
+  partyId            String   @map("party_id") @db.Uuid
+  identifierType     String   @map("identifier_type")
+  issuer             String?
+  /// Application-layer encrypted/restricted payload (KEK placeholder until vault).
+  valueEncrypted     String   @map("value_encrypted")
+  /// SHA-256 hex of normalized value for duplicate lookup (never plaintext).
+  lookupHash         String   @map("lookup_hash")
+  keyVersion         String   @default("local-v1") @map("key_version")
+  verificationStatus String   @default("UNVERIFIED") @map("verification_status")
+  createdAt          DateTime @default(now()) @map("created_at")
+  updatedAt          DateTime @updatedAt @map("updated_at")
+  deletedAt          DateTime? @map("deleted_at")
+
+  party Party @relation(fields: [partyId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, identifierType, lookupHash])
+  @@index([tenantId, partyId])
+  @@map("party_identifiers")
+}
+
+model WaitlistEntry {
+  id          String              @id @default(uuid()) @db.Uuid
+  tenantId    String              @map("tenant_id") @db.Uuid
+  partyId     String              @map("party_id") @db.Uuid
+  propertyId  String?             @map("property_id") @db.Uuid
+  unitId      String?             @map("unit_id") @db.Uuid
+  status      WaitlistEntryStatus @default(OPEN)
+  priority    Int                 @default(100)
+  criteria    Json                @default("{}")
+  notes       String?
+  consentAt   DateTime?           @map("consent_at")
+  expiresAt   DateTime?           @map("expires_at")
+  removedAt   DateTime?           @map("removed_at")
+  removeReason String?            @map("remove_reason")
+  version     Int                 @default(1)
+  createdAt   DateTime            @default(now()) @map("created_at")
+  updatedAt   DateTime            @updatedAt @map("updated_at")
+
+  party    Party     @relation(fields: [partyId], references: [id], onDelete: Cascade)
+  property Property? @relation(fields: [propertyId], references: [id], onDelete: SetNull)
+  unit     Unit?     @relation(fields: [unitId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId, status, createdAt])
+  @@index([tenantId, propertyId])
+  @@map("waitlist_entries")
+}
+
+model DoNotRentFlag {
+  id           String              @id @default(uuid()) @db.Uuid
+  tenantId     String              @map("tenant_id") @db.Uuid
+  partyId      String              @map("party_id") @db.Uuid
+  status       DoNotRentFlagStatus @default(ACTIVE)
+  category     String              @default("GENERAL")
+  reason       String
+  evidenceNote String?             @map("evidence_note")
+  setByUserId  String              @map("set_by_user_id") @db.Uuid
+  reviewAt     DateTime?           @map("review_at")
+  expiresAt    DateTime?           @map("expires_at")
+  clearedAt    DateTime?           @map("cleared_at")
+  clearedByUserId String?          @map("cleared_by_user_id") @db.Uuid
+  clearReason  String?             @map("clear_reason")
+  version      Int                 @default(1)
+  createdAt    DateTime            @default(now()) @map("created_at")
+  updatedAt    DateTime            @updatedAt @map("updated_at")
+
+  party Party @relation(fields: [partyId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, partyId, status])
+  @@index([tenantId, status, reviewAt])
+  @@map("do_not_rent_flags")
+}

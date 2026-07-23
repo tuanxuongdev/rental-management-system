@@ -5,7 +5,7 @@
 **Program references:** [project-roadmap.md](../project-roadmap.md) · [dependency-map.md](../dependency-map.md) · [03-database-design.md](../03-database-design.md) · [04-api-specification.md](../04-api-specification.md) · [06-permission-system.md](../06-permission-system.md)  
 **UI references:** [ui/residents/residents-list.md](../ui/residents/residents-list.md) · [ui/residents/resident-detail.md](../ui/residents/resident-detail.md) · [ui/residents/resident-create-edit.md](../ui/residents/resident-create-edit.md) · [ui/residents/waitlist.md](../ui/residents/waitlist.md) · [ui/documents/documents-library.md](../ui/documents/documents-library.md) · [ui/documents/document-upload.md](../ui/documents/document-upload.md) · [ui/documents/document-detail.md](../ui/documents/document-detail.md) · [ui/cross-cutting-patterns.md](../ui/cross-cutting-patterns.md)  
 **Duration:** 2 weeks  
-**Status:** Ready for planning  
+**Status:** Implemented — see docs/reviews/Sprint-07-Implementation.md  
 **Builds on:** [Sprint-04.md](./Sprint-04.md) · [Sprint-05.md](./Sprint-05.md) · [Sprint-06.md](./Sprint-06.md)
 
 ---

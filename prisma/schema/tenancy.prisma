@@ -60,6 +60,8 @@ model Tenant {
   importJobs               ImportJob[]
   exportJobs               ExportJob[]
   importMappingPresets     ImportMappingPreset[]
+  residentProfiles         ResidentProfile[]
+  documents                Document[]
 
   @@index([status])
   @@map("tenants")

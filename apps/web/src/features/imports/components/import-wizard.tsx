@@ -201,11 +201,7 @@ export function ImportWizard(): React.JSX.Element {
             <Button type="button" variant="outline" onClick={() => void onDownloadTemplate()}>
               Download CSV template
             </Button>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => fileInputRef.current?.click()}
-            >
+            <Button type="button" variant="outline" onClick={() => fileInputRef.current?.click()}>
               Upload CSV
             </Button>
             <input
@@ -234,7 +230,11 @@ export function ImportWizard(): React.JSX.Element {
           </div>
 
           {canImport ? (
-            <Button type="button" disabled={busy || csvText.trim().length === 0} onClick={() => void onCreateAndDryRun()}>
+            <Button
+              type="button"
+              disabled={busy || csvText.trim().length === 0}
+              onClick={() => void onCreateAndDryRun()}
+            >
               {busy ? 'Validating…' : 'Create and dry-run'}
             </Button>
           ) : (
@@ -336,8 +336,7 @@ export function ImportWizard(): React.JSX.Element {
           <div>
             <h2 className="text-lg font-medium">Import committed</h2>
             <p className="text-muted-foreground text-sm">
-              Job{' '}
-              <span className="font-mono text-xs">{importId}</span>
+              Job <span className="font-mono text-xs">{importId}</span>
               {pollJob.isFetching ? ' · refreshing…' : null}
             </p>
           </div>

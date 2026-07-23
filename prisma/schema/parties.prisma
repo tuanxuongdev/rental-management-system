@@ -32,6 +32,11 @@ model Party {
   tenant                 Tenant                    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   contacts               PartyContact[]
   ownerProfile           OwnerProfile?
+  residentProfile        ResidentProfile?
+  identifiers            PartyIdentifier[]
+  waitlistEntries        WaitlistEntry[]
+  doNotRentFlags         DoNotRentFlag[]
+  documentLinks          DocumentLink[]
   propertyOwnerships     PropertyOwnership[]
   managementAgreementParties ManagementAgreementParty[]
 

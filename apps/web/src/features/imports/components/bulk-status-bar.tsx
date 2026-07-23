@@ -94,9 +94,7 @@ export function BulkStatusBar({
     <div className="border-border bg-card space-y-3 rounded-md border p-4">
       {selectedUnitIds.length > 0 ? (
         <div className="flex flex-wrap items-end gap-3">
-          <p className="text-sm font-medium">
-            Bulk status · {selectedUnitIds.length} selected
-          </p>
+          <p className="text-sm font-medium">Bulk status · {selectedUnitIds.length} selected</p>
           <div className="space-y-1">
             <Label htmlFor="bulk-unit-status">Operational status</Label>
             <select

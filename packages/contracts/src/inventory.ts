@@ -14,8 +14,7 @@ export const ORGANIZATION_BUILDING_BY_ID_PATH =
   '/v1/organizations/{organizationId}/buildings/{buildingId}' as const;
 export const ORGANIZATION_PROPERTY_UNITS_PATH =
   '/v1/organizations/{organizationId}/properties/{propertyId}/units' as const;
-export const ORGANIZATION_UNITS_PATH =
-  '/v1/organizations/{organizationId}/units' as const;
+export const ORGANIZATION_UNITS_PATH = '/v1/organizations/{organizationId}/units' as const;
 export const ORGANIZATION_UNIT_BY_ID_PATH =
   '/v1/organizations/{organizationId}/units/{unitId}' as const;
 export const ORGANIZATION_UNIT_RESTORE_PATH =
@@ -183,12 +182,7 @@ export type UnitsCollection = z.infer<typeof unitsCollectionSchema>;
 /** Org-wide unit list (cursor + optional filters). Property scope enforced server-side. */
 export const listUnitsQuerySchema = z.object({
   after: z.string().min(1).optional(),
-  limit: z.coerce
-    .number()
-    .int()
-    .min(1)
-    .max(100)
-    .optional(),
+  limit: z.coerce.number().int().min(1).max(100).optional(),
   propertyId: z.string().uuid().optional(),
   status: inventoryLifecycleStatusSchema.optional(),
   q: z.string().min(1).max(200).optional(),
