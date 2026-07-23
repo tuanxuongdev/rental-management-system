@@ -43,11 +43,15 @@ describe('@rpm/contracts Sprint-03 auth', () => {
       },
       membership: null,
       organization: null,
+      memberships: [],
       roles: [],
-      permissionKeys: [],
+      permissionKeys: ['organization.profile.view'],
+      isReadOnly: true,
       assurance: { level: '1', validUntil: null },
     });
-    expect(parsed.permissionKeys).toEqual([]);
+    expect(parsed.permissionKeys).toContain('organization.profile.view');
+    expect(parsed.isReadOnly).toBe(true);
+    expect(parsed.memberships).toEqual([]);
   });
 
   it('validates organization response', () => {

@@ -1,0 +1,270 @@
+/// Property → Unit → optional Bed inventory (Sprint-05).
+
+enum PropertyType {
+  APARTMENT
+  BOARDING_HOUSE
+  MIXED
+  OTHER
+}
+
+enum PropertyStatus {
+  ACTIVE
+  INACTIVE
+  ARCHIVED
+}
+
+enum UnitTypeKind {
+  APARTMENT
+  STUDIO
+  PRIVATE_ROOM
+  SHARED_ROOM
+}
+
+enum AllocationMode {
+  WHOLE_UNIT
+  BED
+  CAPACITY
+}
+
+enum InventoryOperationalStatus {
+  ACTIVE
+  UNAVAILABLE
+  UNDER_MAINTENANCE
+  RETIRED
+}
+
+enum InventoryLifecycleStatus {
+  ACTIVE
+  ARCHIVED
+}
+
+enum InventoryHistoryTargetType {
+  PROPERTY
+  UNIT
+  BED
+}
+
+model Property {
+  id              String         @id @default(uuid()) @db.Uuid
+  tenantId        String         @map("tenant_id") @db.Uuid
+  code            String
+  name            String
+  propertyType    PropertyType   @map("property_type")
+  addressLine1    String         @map("address_line1")
+  addressLine2    String?        @map("address_line2")
+  city            String
+  region          String?
+  postalCode      String?        @map("postal_code")
+  countryCode     String         @default("US") @map("country_code") @db.Char(2)
+  timeZone        String         @map("time_zone")
+  defaultCurrency String         @map("default_currency") @db.Char(3)
+  status          PropertyStatus @default(ACTIVE)
+  version         Int            @default(1)
+  createdAt       DateTime       @default(now()) @map("created_at")
+  updatedAt       DateTime       @updatedAt @map("updated_at")
+  deletedAt       DateTime?      @map("deleted_at")
+
+  tenant               Tenant                 @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  buildings            Building[]
+  units                Unit[]
+  propertyAmenities    PropertyAmenity[]
+  ownerships           PropertyOwnership[]
+  managementAgreements ManagementAgreement[]
+  accessGrants         PropertyAccessGrant[]
+  statusHistory        InventoryStatusHistory[]
+  ratePlans            RatePlan[]
+
+  @@index([tenantId, status])
+  @@index([tenantId, code])
+  @@map("properties")
+}
+
+model Building {
+  id         String                   @id @default(uuid()) @db.Uuid
+  tenantId   String                   @map("tenant_id") @db.Uuid
+  propertyId String                   @map("property_id") @db.Uuid
+  code       String
+  name       String
+  status     InventoryLifecycleStatus @default(ACTIVE)
+  sortOrder  Int                      @default(0) @map("sort_order")
+  version    Int                      @default(1)
+  createdAt  DateTime                 @default(now()) @map("created_at")
+  updatedAt  DateTime                 @updatedAt @map("updated_at")
+  deletedAt  DateTime?                @map("deleted_at")
+
+  property Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  floors   Floor[]
+  units    Unit[]
+
+  @@index([tenantId, propertyId])
+  @@map("buildings")
+}
+
+model Floor {
+  id         String                   @id @default(uuid()) @db.Uuid
+  tenantId   String                   @map("tenant_id") @db.Uuid
+  buildingId String                   @map("building_id") @db.Uuid
+  label      String
+  sortOrder  Int                      @default(0) @map("sort_order")
+  status     InventoryLifecycleStatus @default(ACTIVE)
+  createdAt  DateTime                 @default(now()) @map("created_at")
+  updatedAt  DateTime                 @updatedAt @map("updated_at")
+
+  building Building @relation(fields: [buildingId], references: [id], onDelete: Cascade)
+  units    Unit[]
+
+  @@index([tenantId, buildingId])
+  @@map("floors")
+}
+
+model UnitType {
+  id             String                   @id @default(uuid()) @db.Uuid
+  tenantId       String                   @map("tenant_id") @db.Uuid
+  code           String
+  name           String
+  defaultCapacity Int                     @default(1) @map("default_capacity")
+  status         InventoryLifecycleStatus @default(ACTIVE)
+  createdAt      DateTime                 @default(now()) @map("created_at")
+  updatedAt      DateTime                 @updatedAt @map("updated_at")
+
+  units Unit[]
+
+  @@unique([tenantId, code])
+  @@map("unit_types")
+}
+
+model Unit {
+  id                String                     @id @default(uuid()) @db.Uuid
+  tenantId          String                     @map("tenant_id") @db.Uuid
+  propertyId        String                     @map("property_id") @db.Uuid
+  buildingId        String?                    @map("building_id") @db.Uuid
+  floorId           String?                    @map("floor_id") @db.Uuid
+  unitTypeId        String?                    @map("unit_type_id") @db.Uuid
+  code              String
+  name              String
+  unitType          UnitTypeKind               @map("unit_type")
+  allocationMode    AllocationMode             @map("allocation_mode")
+  capacity          Int                        @default(1)
+  operationalStatus InventoryOperationalStatus @default(ACTIVE) @map("operational_status")
+  status            InventoryLifecycleStatus   @default(ACTIVE)
+  version           Int                        @default(1)
+  createdAt         DateTime                   @default(now()) @map("created_at")
+  updatedAt         DateTime                   @updatedAt @map("updated_at")
+  deletedAt         DateTime?                  @map("deleted_at")
+
+  property      Property                @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  building      Building?               @relation(fields: [buildingId], references: [id], onDelete: SetNull)
+  floor         Floor?                  @relation(fields: [floorId], references: [id], onDelete: SetNull)
+  unitTypeRef   UnitType?               @relation(fields: [unitTypeId], references: [id], onDelete: SetNull)
+  beds          Bed[]
+  unitAmenities UnitAmenity[]
+  statusHistory InventoryStatusHistory[]
+
+  @@index([tenantId, propertyId, status])
+  @@index([tenantId, propertyId, code])
+  @@map("units")
+}
+
+model Bed {
+  id                String                     @id @default(uuid()) @db.Uuid
+  tenantId          String                     @map("tenant_id") @db.Uuid
+  unitId            String                     @map("unit_id") @db.Uuid
+  code              String
+  label             String
+  operationalStatus InventoryOperationalStatus @default(ACTIVE) @map("operational_status")
+  status            InventoryLifecycleStatus   @default(ACTIVE)
+  version           Int                        @default(1)
+  createdAt         DateTime                   @default(now()) @map("created_at")
+  updatedAt         DateTime                   @updatedAt @map("updated_at")
+  deletedAt         DateTime?                  @map("deleted_at")
+
+  unit          Unit                     @relation(fields: [unitId], references: [id], onDelete: Cascade)
+  statusHistory InventoryStatusHistory[]
+
+  @@index([tenantId, unitId])
+  @@map("beds")
+}
+
+model Amenity {
+  id        String                   @id @default(uuid()) @db.Uuid
+  tenantId  String                   @map("tenant_id") @db.Uuid
+  code      String
+  name      String
+  category  String?
+  status    InventoryLifecycleStatus @default(ACTIVE)
+  createdAt DateTime                 @default(now()) @map("created_at")
+  updatedAt DateTime                 @updatedAt @map("updated_at")
+
+  propertyAmenities PropertyAmenity[]
+  unitAmenities     UnitAmenity[]
+
+  @@unique([tenantId, code])
+  @@map("amenities")
+}
+
+model PropertyAmenity {
+  id         String   @id @default(uuid()) @db.Uuid
+  tenantId   String   @map("tenant_id") @db.Uuid
+  propertyId String   @map("property_id") @db.Uuid
+  amenityId  String   @map("amenity_id") @db.Uuid
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  property Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  amenity  Amenity  @relation(fields: [amenityId], references: [id], onDelete: Cascade)
+
+  @@unique([propertyId, amenityId])
+  @@map("property_amenities")
+}
+
+model UnitAmenity {
+  id        String   @id @default(uuid()) @db.Uuid
+  tenantId  String   @map("tenant_id") @db.Uuid
+  unitId    String   @map("unit_id") @db.Uuid
+  amenityId String   @map("amenity_id") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at")
+
+  unit    Unit    @relation(fields: [unitId], references: [id], onDelete: Cascade)
+  amenity Amenity @relation(fields: [amenityId], references: [id], onDelete: Cascade)
+
+  @@unique([unitId, amenityId])
+  @@map("unit_amenities")
+}
+
+model InventoryStatusHistory {
+  id            String                    @id @default(uuid()) @db.Uuid
+  tenantId      String                    @map("tenant_id") @db.Uuid
+  targetType    InventoryHistoryTargetType @map("target_type")
+  propertyId    String?                   @map("property_id") @db.Uuid
+  unitId        String?                   @map("unit_id") @db.Uuid
+  bedId         String?                   @map("bed_id") @db.Uuid
+  status        String
+  reason        String?
+  actorUserId   String?                   @map("actor_user_id") @db.Uuid
+  effectiveFrom DateTime                  @default(now()) @map("effective_from")
+  recordedAt    DateTime                  @default(now()) @map("recorded_at")
+
+  property Property? @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  unit     Unit?     @relation(fields: [unitId], references: [id], onDelete: Cascade)
+  bed      Bed?      @relation(fields: [bedId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, recordedAt])
+  @@map("inventory_status_history")
+}
+
+model RatePlan {
+  id         String                   @id @default(uuid()) @db.Uuid
+  tenantId   String                   @map("tenant_id") @db.Uuid
+  propertyId String?                  @map("property_id") @db.Uuid
+  name       String
+  currency   String                   @db.Char(3)
+  amount     Decimal                  @db.Decimal(19, 4)
+  cadence    String                   @default("MONTHLY")
+  status     InventoryLifecycleStatus @default(ACTIVE)
+  createdAt  DateTime                 @default(now()) @map("created_at")
+  updatedAt  DateTime                 @updatedAt @map("updated_at")
+
+  property Property? @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, propertyId])
+  @@map("rate_plans")
+}

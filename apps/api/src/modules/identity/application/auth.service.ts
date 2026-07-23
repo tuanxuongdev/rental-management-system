@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 
 import {
   ConflictException,
+  ForbiddenException,
   GoneException,
   HttpException,
   HttpStatus,
@@ -30,6 +31,7 @@ import {
   type LogoutAllRequest,
   type MfaChallengeRequest,
   type MfaRequiredResponse,
+  type OrganizationSwitchResponse,
   type PasswordForgotRequest,
   type PasswordResetRequest,
   type TokenResponse,
@@ -451,6 +453,27 @@ export class AuthService {
     const newRefreshHash = this.tokenHash.hashToken(newRefreshRaw);
     const now = new Date();
 
+    // T04-07: suspended membership blocks refresh for that org context
+    let organizationId = session.currentTenantId;
+    let membershipId = session.currentMembershipId;
+    if (membershipId !== null) {
+      const membership = await this.prisma.tenantMembership.findUnique({
+        where: { id: membershipId },
+      });
+      if (membership === null || membership.status === MembershipStatus.SUSPENDED) {
+        await this.prisma.userSession.update({
+          where: { id: session.id },
+          data: {
+            currentTenantId: null,
+            currentMembershipId: null,
+            sessionVersion: { increment: 1 },
+          },
+        });
+        organizationId = null;
+        membershipId = null;
+      }
+    }
+
     await this.transactions.run(async (tx) => {
       const current = await tx.refreshToken.findUnique({ where: { id: existing.id } });
       if (current === null || current.consumedAt !== null) {
@@ -483,8 +506,8 @@ export class AuthService {
     const { token, expiresIn } = await this.jwt.signAccessToken({
       sub: session.userId,
       sid: session.id,
-      org_id: session.currentTenantId,
-      membership_id: session.currentMembershipId,
+      org_id: organizationId,
+      membership_id: membershipId,
       auth_time: Math.floor(session.authTime.getTime() / 1000),
       amr: session.amr,
       acr: session.acr,
@@ -496,7 +519,7 @@ export class AuthService {
     return {
       accessToken: token,
       expiresIn,
-      organizationId: session.currentTenantId,
+      organizationId,
     };
   }
 
@@ -785,6 +808,50 @@ export class AuthService {
     });
 
     return { accessToken: token, expiresIn, organizationId };
+  }
+
+  async switchOrganization(
+    userId: string,
+    sessionId: string,
+    organizationId: string,
+    correlationId?: string,
+  ): Promise<OrganizationSwitchResponse> {
+    const membership = await this.prisma.tenantMembership.findFirst({
+      where: {
+        userId,
+        tenantId: organizationId,
+        membershipType: 'WORKFORCE',
+        status: MembershipStatus.ACTIVE,
+      },
+    });
+
+    if (membership === null) {
+      throw new ForbiddenException({
+        message: 'No active membership for the target Organization',
+        code: 'ORGANIZATION_SWITCH_FORBIDDEN',
+      });
+    }
+
+    const token = await this.attachOrganizationToSession(sessionId, organizationId, membership.id);
+
+    await this.audit.record({
+      tenantId: organizationId,
+      actorUserId: userId,
+      sessionId,
+      action: 'auth.organization_switch',
+      outcome: 'SUCCESS',
+      targetType: 'membership',
+      targetId: membership.id,
+      correlationId,
+      changeSummary: { organizationId, membershipId: membership.id },
+    });
+
+    return {
+      accessToken: token.accessToken,
+      expiresIn: token.expiresIn,
+      organizationId,
+      membershipId: membership.id,
+    };
   }
 
   async resendVerification(

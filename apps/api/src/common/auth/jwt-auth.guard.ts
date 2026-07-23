@@ -52,13 +52,15 @@ export class JwtAuthGuard implements CanActivate {
         claims.sub,
         claims.token_version,
         claims.sid,
+        claims.org_id,
+        claims.membership_id,
       );
 
       request.actor = {
         userId: claims.sub,
         sessionId: claims.sid,
-        organizationId: claims.org_id,
-        membershipId: claims.membership_id,
+        organizationId: user.organizationId,
+        membershipId: user.membershipId,
         tokenVersion: claims.token_version,
         email: user.email,
       };

@@ -5,7 +5,7 @@
 **Program references:** [project-roadmap.md](../project-roadmap.md) · [dependency-map.md](../dependency-map.md) · [05-authentication.md](../05-authentication.md) · [06-permission-system.md](../06-permission-system.md)  
 **UI references:** [ui/auth/login.md](../ui/auth/login.md) · [ui/auth/forgot-password.md](../ui/auth/forgot-password.md) · [ui/auth/reset-password.md](../ui/auth/reset-password.md) · [ui/auth/invitation-accept.md](../ui/auth/invitation-accept.md) · [ui/auth/email-verify.md](../ui/auth/email-verify.md) · [ui/auth/mfa-challenge.md](../ui/auth/mfa-challenge.md) · [ui/cross-cutting-patterns.md](../ui/cross-cutting-patterns.md)  
 **Duration:** 2 weeks  
-**Status:** Ready for planning  
+**Status:** Implemented / Reviewed — see docs/reviews/Sprint-03-Review.md  
 **Builds on:** [Sprint-01.md](./Sprint-01.md) · [Sprint-02.md](./Sprint-02.md)
 
 ---

@@ -47,10 +47,19 @@ model Tenant {
   createdAt       DateTime     @default(now()) @map("created_at")
   updatedAt       DateTime     @updatedAt @map("updated_at")
 
-  settings    TenantSetting[]
-  memberships TenantMembership[]
-  invitations Invitation[]
-  auditEvents AuditEvent[]
+  settings                 TenantSetting[]
+  memberships              TenantMembership[]
+  invitations              Invitation[]
+  auditEvents              AuditEvent[]
+  roles                    Role[]
+  membershipRoles          MembershipRole[]
+  propertyAccessGrants     PropertyAccessGrant[]
+  privilegedAccessEvents   PrivilegedAccessEvent[]
+  parties                  Party[]
+  properties               Property[]
+  importJobs               ImportJob[]
+  exportJobs               ExportJob[]
+  importMappingPresets     ImportMappingPreset[]
 
   @@index([status])
   @@map("tenants")
@@ -84,8 +93,10 @@ model TenantMembership {
   createdAt      DateTime         @default(now()) @map("created_at")
   updatedAt      DateTime         @updatedAt @map("updated_at")
 
-  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tenant               Tenant               @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user                 User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  membershipRoles      MembershipRole[]
+  propertyAccessGrants PropertyAccessGrant[]
 
   @@unique([tenantId, userId, membershipType])
   @@index([userId, status])

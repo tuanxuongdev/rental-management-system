@@ -13,13 +13,14 @@ import { PlatformInfrastructureModule } from '../../infrastructure/platform/plat
 import { PrismaModule } from '../../infrastructure/prisma/prisma.module';
 import { RateLimitService } from '../../infrastructure/rate-limit/rate-limit.service';
 import { AuditModule } from '../audit/audit.module';
+import { RbacModule } from '../tenancy/rbac.module';
 
 import { AuthService } from './application/auth.service';
 import { MeService } from './application/me.service';
 import { AuthController, MeController } from './presentation/auth.controller';
 
 @Module({
-  imports: [ApiConfigModule, PrismaModule, PlatformInfrastructureModule, AuditModule],
+  imports: [ApiConfigModule, PrismaModule, PlatformInfrastructureModule, AuditModule, RbacModule],
   controllers: [AuthController, MeController],
   providers: [
     AuthService,

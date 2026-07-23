@@ -1,3 +1,5 @@
+import { randomUUID } from 'node:crypto';
+
 import {
   ConflictException,
   GoneException,
@@ -5,14 +7,19 @@ import {
   HttpStatus,
   Inject,
   Injectable,
+  NotFoundException,
 } from '@nestjs/common';
-import { InvitationPurpose, InvitationStatus, MembershipStatus } from '@prisma/client';
+import { InvitationPurpose, InvitationStatus, MembershipStatus, type Prisma } from '@prisma/client';
 
 import {
   type AcceptInvitationRequest,
   type CreateInvitationRequest,
   type InvitationAcceptanceResponse,
   type InvitationResponse,
+  type InvitationsCollection,
+  normalizePaginationLimit,
+  PAGINATION_DEFAULT_LIMIT,
+  SYSTEM_ROLE_KEYS,
 } from '@rpm/contracts';
 
 import { normalizeEmail, TokenHashService } from '../../../infrastructure/crypto/crypto.services';
@@ -20,6 +27,16 @@ import { EmailService } from '../../../infrastructure/email/email.service';
 import { TransactionService } from '../../../infrastructure/persistence/transaction.service';
 import { PrismaService } from '../../../infrastructure/prisma/prisma.module';
 import { AuditService } from '../../audit/audit.service';
+
+import { AuthorizationService } from './authorization.service';
+import { RbacSeedService } from './rbac-seed.service';
+
+function parseProposedRoleIds(value: Prisma.JsonValue): string[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return value.filter((item): item is string => typeof item === 'string');
+}
 
 @Injectable()
 export class InvitationService {
@@ -29,11 +46,14 @@ export class InvitationService {
     @Inject(TokenHashService) private readonly tokenHash: TokenHashService,
     @Inject(EmailService) private readonly email: EmailService,
     @Inject(AuditService) private readonly audit: AuditService,
+    @Inject(RbacSeedService) private readonly rbacSeed: RbacSeedService,
+    @Inject(AuthorizationService) private readonly authorization: AuthorizationService,
   ) {}
 
   async createInvitation(
     organizationId: string,
     inviterUserId: string,
+    inviterMembershipId: string,
     body: CreateInvitationRequest,
     correlationId?: string,
   ): Promise<InvitationResponse> {
@@ -59,6 +79,18 @@ export class InvitationService {
       });
     }
 
+    const proposedRoleIds =
+      body.proposedRoleIds !== undefined && body.proposedRoleIds.length > 0
+        ? body.proposedRoleIds
+        : [await this.rbacSeed.getSystemRoleId(SYSTEM_ROLE_KEYS.ADMIN)];
+
+    // Invitees receive these roles on accept — same delegation rules as role assign.
+    await this.authorization.assertCanAssignRoles(
+      inviterMembershipId,
+      proposedRoleIds,
+      organizationId,
+    );
+
     const invitation = await this.prisma.invitation.create({
       data: {
         tenantId: organizationId,
@@ -69,6 +101,7 @@ export class InvitationService {
         inviterUserId,
         expiresAt,
         message: body.message ?? null,
+        proposedRoleIds,
       },
     });
 
@@ -87,10 +120,134 @@ export class InvitationService {
       targetType: 'invitation',
       targetId: invitation.id,
       correlationId,
-      changeSummary: { email: normalizedEmail },
+      changeSummary: { email: normalizedEmail, proposedRoleIds },
     });
 
     return this.toInvitationResponse(invitation);
+  }
+
+  async listInvitations(
+    organizationId: string,
+    options?: { limit?: number; after?: string },
+  ): Promise<InvitationsCollection> {
+    const limit = normalizePaginationLimit(options?.limit ?? PAGINATION_DEFAULT_LIMIT);
+    const invitations = await this.prisma.invitation.findMany({
+      where: {
+        tenantId: organizationId,
+        ...(options?.after !== undefined ? { id: { gt: options.after } } : {}),
+      },
+      orderBy: { id: 'asc' },
+      take: limit + 1,
+    });
+
+    const pageItems = invitations.slice(0, limit);
+    const hasMore = invitations.length > limit;
+    const last = pageItems.at(-1);
+
+    return {
+      data: pageItems.map((invitation) => ({
+        ...this.toInvitationResponse(invitation),
+        proposedRoleIds: parseProposedRoleIds(invitation.proposedRoleIds),
+      })),
+      page: {
+        nextCursor: hasMore && last !== undefined ? last.id : null,
+        previousCursor: null,
+        limit,
+      },
+      meta: {},
+    };
+  }
+
+  async revokeInvitation(
+    organizationId: string,
+    invitationId: string,
+    actorUserId: string,
+    correlationId?: string,
+  ): Promise<InvitationResponse> {
+    const invitation = await this.prisma.invitation.findFirst({
+      where: { id: invitationId, tenantId: organizationId },
+    });
+
+    if (invitation === null) {
+      throw new NotFoundException({
+        message: 'Invitation not found',
+        code: 'RESOURCE_NOT_FOUND',
+      });
+    }
+
+    if (invitation.status !== InvitationStatus.PENDING) {
+      throw new ConflictException({
+        message: 'Only pending invitations can be revoked',
+        code: 'INVITATION_NOT_PENDING',
+      });
+    }
+
+    const updated = await this.prisma.invitation.update({
+      where: { id: invitationId },
+      data: { status: InvitationStatus.REVOKED },
+    });
+
+    await this.audit.record({
+      tenantId: organizationId,
+      actorUserId,
+      action: 'invitation.revoke',
+      outcome: 'SUCCESS',
+      targetType: 'invitation',
+      targetId: invitationId,
+      correlationId,
+    });
+
+    return this.toInvitationResponse(updated);
+  }
+
+  async resendInvitation(
+    organizationId: string,
+    invitationId: string,
+    actorUserId: string,
+    correlationId?: string,
+  ): Promise<InvitationResponse> {
+    const invitation = await this.prisma.invitation.findFirst({
+      where: { id: invitationId, tenantId: organizationId },
+    });
+
+    if (invitation === null) {
+      throw new NotFoundException({
+        message: 'Invitation not found',
+        code: 'RESOURCE_NOT_FOUND',
+      });
+    }
+
+    if (invitation.status !== InvitationStatus.PENDING || invitation.expiresAt <= new Date()) {
+      throw new ConflictException({
+        message: 'Only pending, unexpired invitations can be resent',
+        code: 'INVITATION_NOT_PENDING',
+      });
+    }
+
+    const rawToken = this.tokenHash.generateOpaqueToken();
+    const updated = await this.prisma.invitation.update({
+      where: { id: invitationId },
+      data: { tokenHash: this.tokenHash.hashToken(rawToken) },
+    });
+
+    await this.email.send({
+      to: invitation.normalizedEmail,
+      subject: 'Organization invitation (resent)',
+      body: `Invitation token (dev): ${rawToken}`,
+      correlationId,
+    });
+
+    await this.audit.record({
+      tenantId: organizationId,
+      actorUserId,
+      action: 'invitation.resend',
+      outcome: 'SUCCESS',
+      targetType: 'invitation',
+      targetId: invitationId,
+      correlationId,
+    });
+
+    return this.toInvitationResponse(updated);
   }
 
   async acceptInvitation(
@@ -142,6 +299,14 @@ export class InvitationService {
       });
     }
 
+    let proposedRoleIds = parseProposedRoleIds(invitation.proposedRoleIds);
+    if (proposedRoleIds.length === 0) {
+      proposedRoleIds = [await this.rbacSeed.getSystemRoleId(SYSTEM_ROLE_KEYS.ADMIN)];
+    }
+
+    // Re-validate role IDs belong to this org / system templates (no cross-tenant grants).
+    await this.authorization.assertRolesBelongToOrganization(invitation.tenantId, proposedRoleIds);
+
     const membership = await this.transactions.run(async (tx) => {
       const claimed = await tx.invitation.updateMany({
         where: {
@@ -167,6 +332,7 @@ export class InvitationService {
         },
       });
 
+      let membershipRecord;
       if (existing !== null) {
         if (existing.status === MembershipStatus.SUSPENDED) {
           throw new ConflictException({
@@ -176,30 +342,53 @@ export class InvitationService {
         }
 
         if (existing.status !== MembershipStatus.ACTIVE) {
-          return tx.tenantMembership.update({
+          membershipRecord = await tx.tenantMembership.update({
             where: { id: existing.id },
             data: { status: MembershipStatus.ACTIVE },
           });
+        } else {
+          membershipRecord = existing;
+        }
+      } else {
+        if (body.displayName !== undefined) {
+          await tx.user.update({
+            where: { id: authenticatedUserId },
+            data: { displayName: body.displayName },
+          });
         }
 
-        return existing;
-      }
-
-      if (body.displayName !== undefined) {
-        await tx.user.update({
-          where: { id: authenticatedUserId },
-          data: { displayName: body.displayName },
+        membershipRecord = await tx.tenantMembership.create({
+          data: {
+            tenantId: invitation.tenantId,
+            userId: authenticatedUserId,
+            membershipType: 'WORKFORCE',
+            status: MembershipStatus.ACTIVE,
+          },
         });
       }
 
-      return tx.tenantMembership.create({
-        data: {
-          tenantId: invitation.tenantId,
-          userId: authenticatedUserId,
-          membershipType: 'WORKFORCE',
-          status: MembershipStatus.ACTIVE,
+      const now = new Date();
+      await tx.membershipRole.updateMany({
+        where: {
+          membershipId: membershipRecord.id,
+          OR: [{ effectiveTo: null }, { effectiveTo: { gt: now } }],
         },
+        data: { effectiveTo: now },
       });
+
+      for (const roleId of proposedRoleIds) {
+        await tx.membershipRole.create({
+          data: {
+            id: randomUUID(),
+            tenantId: invitation.tenantId,
+            membershipId: membershipRecord.id,
+            roleId,
+            assignedByUserId: invitation.inviterUserId,
+          },
+        });
+      }
+
+      return membershipRecord;
     });
 
     await this.audit.record({
@@ -209,7 +398,7 @@ export class InvitationService {
       outcome: 'SUCCESS',
       targetType: 'invitation',
       targetId: invitation.id,
-      changeSummary: { membershipId: membership.id },
+      changeSummary: { membershipId: membership.id, proposedRoleIds },
     });
 
     return {

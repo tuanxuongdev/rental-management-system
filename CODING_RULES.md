@@ -113,8 +113,9 @@ features/leasing/
   index.ts       public surface only
 ```
 
-Thin `app/**/page.tsx` files compose features; business logic stays in features/domain.
+**Accepted adapter (Sprint-06):** typed HTTP clients may live in `apps/web/src/lib/*-api.ts` and be called from feature hooks. Prefer co-locating new domain clients under `features/<domain>/api/` when adding greenfield modules; do not invent a second transport contract outside `@rpm/contracts`.
 
+Thin `app/**/page.tsx` files compose features; business logic stays in features/domain.
 ### 4.3 `apps/api`
 
 ```text

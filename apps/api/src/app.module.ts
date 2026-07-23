@@ -8,7 +8,10 @@ import { ObservabilityModule } from './common/observability/observability.module
 import { HealthModule } from './health/health.module';
 import { PrismaModule } from './infrastructure/prisma/prisma.module';
 import { IdentityModule } from './modules/identity/identity.module';
+import { ImportsModule } from './modules/imports/imports.module';
+import { InventoryModule } from './modules/inventory/inventory.module';
 import { MetaModule } from './modules/meta/meta.module';
+import { PartiesModule } from './modules/parties/parties.module';
 import { TenancyModule } from './modules/tenancy/tenancy.module';
 
 @Module({
@@ -25,6 +28,9 @@ import { TenancyModule } from './modules/tenancy/tenancy.module';
     MetaModule,
     IdentityModule,
     TenancyModule,
+    InventoryModule,
+    PartiesModule,
+    ImportsModule,
   ],
 })
 export class AppModule implements NestModule {

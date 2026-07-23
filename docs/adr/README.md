@@ -14,5 +14,6 @@ Accepted ADRs in this directory are mandatory before implementing or materially 
 | [0002](./0002-transactional-outbox.md) | Transactional outbox for async side effects | Proposed (stub) |
 | [0003](./0003-prisma-raw-sql-policy.md) | Prisma schema with reviewed raw SQL migrations | Proposed (stub) |
 | [0004](./0004-money-representation.md) | Money representation and rounding policy | Proposed (stub) |
+| [0005](./0005-nextjs-app-router.md) | Next.js App Router for staff web | Accepted |
 
 Sprint-01 ships these stubs to satisfy M0 platform decision tracking. Implementation decisions finalize before the consuming sprint merges domain code.

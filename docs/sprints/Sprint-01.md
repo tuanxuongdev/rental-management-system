@@ -4,7 +4,7 @@
 **Roadmap alignment:** [10-development-roadmap.md](../10-development-roadmap.md) Sprint 1 · Phase 1 toward **M1**  
 **Program references:** [project-roadmap.md](../project-roadmap.md) · [dependency-map.md](../dependency-map.md)  
 **Duration:** 2 weeks (program calendar: weeks 1–2 after Sprint 0 / M0)  
-**Status:** Ready for planning  
+**Status:** Implemented / Reviewed — see docs/reviews/Sprint-01-Review.md  
 **Builds on:** Sprint 0 / **M0** (charter, ADRs stubs, provider kickoff)—no separate sprint file; see [10-development-roadmap.md](../10-development-roadmap.md)
 
 ---

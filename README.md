@@ -2,7 +2,7 @@
 
 Production-oriented monorepo for a multi-tenant Rental Property Management SaaS (boarding houses and apartments).
 
-Design documentation under [`docs/`](./docs) is normative. **Sprint-02** (current) delivers the data and operational foundation — Prisma platform migrations, outbox/idempotency, API envelopes, staging deploy, integration tests, and runbooks. **Sprint-01** established the monorepo, health/meta endpoints, CI/CD, and web status slice.
+Design documentation under [`docs/`](./docs) is normative. **Sprints 01–05 are implemented and reviewed** (platform → identity/RBAC → portfolio inventory). The next planned increment is **[Sprint-06](./docs/sprints/Sprint-06.md)** (bulk inventory import and 10k scale baseline toward **M3**). See [`docs/reviews/Mid-Project-Audit.md`](./docs/reviews/Mid-Project-Audit.md) for the mid-program health check.
 
 ## License
 
@@ -64,20 +64,19 @@ Or run the full stack:
 docker compose -f infrastructure/docker/docker-compose.yml up --build
 ```
 
-### API endpoints (Sprint-01 + Sprint-02)
+### API endpoints (foundation + current domains)
 
 | Method | Path | Purpose |
 |---|---|---|
 | `GET` | `/health` | API liveness |
 | `GET` | `/ready` | API readiness (configuration + PostgreSQL; Redis skipped if unset) |
-| `GET` | `/v1/meta/version` | Build version + git SHA |
-| `GET` | `/v1/meta/ping` | Sample JSON ping for web→API demo |
-| `GET` | `/v1/meta/pagination-example` | Empty cursor pagination envelope |
-| `GET` | `/v1/meta/operations` | Empty operations skeleton |
-| `POST` | `/v1/meta/idempotent-echo` | Idempotent echo demo (`Idempotency-Key` required) |
+| `GET` | `/v1/meta/*` | Version, ping, pagination/operations skeletons, idempotent echo (demo gated) |
+| `POST` | `/v1/auth/*` | Login, refresh, logout, MFA, invitations, organization switch |
+| `GET` | `/v1/me` | Current user, memberships, effective permissions |
+| `*` | `/v1/organizations/{organizationId}/*` | Org admin (members, roles, settings) + portfolio inventory/parties |
 | `GET` | `http://localhost:3002/health` | Worker health |
 
-Send `X-Request-ID` on API requests; the same value is returned on the response and echoed in ping JSON for trace correlation.
+Domain route inventories and permissions: [`docs/04-api-specification.md`](./docs/04-api-specification.md), [`docs/06-permission-system.md`](./docs/06-permission-system.md), sprint implementation reviews under [`docs/reviews/`](./docs/reviews/).
 
 ### Quality gates
 
@@ -133,8 +132,9 @@ Report vulnerabilities privately — see [`SECURITY.md`](./SECURITY.md).
 |---|---|
 | [`docs/00-overview.md`](./docs/00-overview.md) | Product vision |
 | [`docs/project-roadmap.md`](./docs/project-roadmap.md) | Program roadmap |
-| [`docs/sprints/Sprint-02.md`](./docs/sprints/Sprint-02.md) | Current sprint scope (M1 data/ops foundation) |
-| [`docs/sprints/Sprint-01.md`](./docs/sprints/Sprint-01.md) | Sprint-01 foundation |
+| [`docs/reviews/Mid-Project-Audit.md`](./docs/reviews/Mid-Project-Audit.md) | Mid-project architecture / readiness audit |
+| [`docs/sprints/Sprint-06.md`](./docs/sprints/Sprint-06.md) | Next sprint (M3 import + scale) |
+| [`docs/sprints/Sprint-05.md`](./docs/sprints/Sprint-05.md) | Latest completed domain sprint (portfolio inventory) |
 | [`docs/adr/README.md`](./docs/adr/README.md) | Architecture decision records |
 | [`docs/git-workflow.md`](./docs/git-workflow.md) | Branching and PR workflow |
 | [`docs/commit-convention.md`](./docs/commit-convention.md) | Conventional Commits |
@@ -150,5 +150,6 @@ Report vulnerabilities privately — see [`SECURITY.md`](./SECURITY.md).
 ## Notes
 
 - Access tokens must never be stored in `localStorage` / `sessionStorage`.
-- `X-Tenant-ID` is rejected by the API auth skeleton.
-- Do not implement business CRUD until the corresponding sprint is in progress.
+- `X-Tenant-ID` / `X-Organization-ID` are rejected by the API.
+- Implement only the active sprint scope; do not invent ahead-of-sprint business CRUD.
+- Quality gates also include `pnpm isolation` (Organization isolation / portfolio authz suite).

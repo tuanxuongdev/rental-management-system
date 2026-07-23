@@ -4,7 +4,7 @@
 **Roadmap alignment:** [10-development-roadmap.md](../10-development-roadmap.md) Sprint 6 · Phase 3 exit **M3**  
 **Program references:** [project-roadmap.md](../project-roadmap.md) · [dependency-map.md](../dependency-map.md) · [03-database-design.md](../03-database-design.md) · [ui/admin/import-wizard.md](../ui/admin/import-wizard.md) · [ui/shell/operations-center.md](../ui/shell/operations-center.md) · [ui/cross-cutting-patterns.md](../ui/cross-cutting-patterns.md)  
 **Duration:** 2 weeks  
-**Status:** Ready for planning  
+**Status:** Implemented — see docs/reviews/Sprint-06-Implementation.md  
 **Builds on:** [Sprint-05.md](./Sprint-05.md)
 
 ---

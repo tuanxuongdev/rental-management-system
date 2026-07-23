@@ -1,0 +1,459 @@
+import {
+  OWNER_ONLY_PERMISSION_KEYS,
+  PERMISSION_KEYS,
+  PLATFORM_PERMISSION_KEYS,
+  SYSTEM_ROLE_KEYS,
+} from '@rpm/contracts';
+
+export type PermissionSeed = {
+  key: string;
+  domain: string;
+  description: string;
+  riskLevel: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
+  isPlatform: boolean;
+  isOwnerOnly: boolean;
+  assignable: boolean;
+};
+
+export type SystemRoleSeed = {
+  key: string;
+  name: string;
+  description: string;
+  status: 'ACTIVE' | 'INACTIVE';
+  maximumScope: 'ORGANIZATION' | 'PROPERTY' | 'SELF';
+  permissionKeys: readonly string[];
+};
+
+const P = PERMISSION_KEYS;
+
+function seed(
+  key: string,
+  domain: string,
+  description: string,
+  riskLevel: PermissionSeed['riskLevel'] = 'LOW',
+): PermissionSeed {
+  return {
+    key,
+    domain,
+    description,
+    riskLevel,
+    isPlatform: false,
+    isOwnerOnly: false,
+    assignable: true,
+  };
+}
+
+export const PERMISSION_CATALOG: readonly PermissionSeed[] = [
+  {
+    key: P.ORGANIZATION_PROFILE_VIEW,
+    domain: 'organization',
+    description: 'View organization profile',
+    riskLevel: 'LOW',
+    isPlatform: false,
+    isOwnerOnly: false,
+    assignable: true,
+  },
+  {
+    key: P.ORGANIZATION_PROFILE_UPDATE,
+    domain: 'organization',
+    description: 'Update organization profile and defaults',
+    riskLevel: 'MEDIUM',
+    isPlatform: false,
+    isOwnerOnly: false,
+    assignable: true,
+  },
+  {
+    key: P.ORGANIZATION_SECURITY_VIEW,
+    domain: 'organization',
+    description: 'View organization security settings',
+    riskLevel: 'MEDIUM',
+    isPlatform: false,
+    isOwnerOnly: false,
+    assignable: true,
+  },
+  {
+    key: P.ORGANIZATION_SECURITY_UPDATE,
+    domain: 'organization',
+    description: 'Update organization security settings',
+    riskLevel: 'HIGH',
+    isPlatform: false,
+    isOwnerOnly: false,
+    assignable: true,
+  },
+  {
+    key: P.ORGANIZATION_OWNERSHIP_TRANSFER,
+    domain: 'organization',
+    description: 'Transfer organization ownership',
+    riskLevel: 'CRITICAL',
+    isPlatform: false,
+    isOwnerOnly: true,
+    assignable: false,
+  },
+  {
+    key: P.ORGANIZATION_DELETE,
+    domain: 'organization',
+    description: 'Delete organization',
+    riskLevel: 'CRITICAL',
+    isPlatform: false,
+    isOwnerOnly: true,
+    assignable: false,
+  },
+  {
+    key: P.MEMBERS_LIST,
+    domain: 'members',
+    description: 'List memberships',
+    riskLevel: 'LOW',
+    isPlatform: false,
+    isOwnerOnly: false,
+    assignable: true,
+  },
+  {
+    key: P.MEMBERS_VIEW,
+    domain: 'members',
+    description: 'View membership detail',
+    riskLevel: 'LOW',
+    isPlatform: false,
+    isOwnerOnly: false,
+    assignable: true,
+  },
+  {
+    key: P.MEMBERS_INVITE,
+    domain: 'members',
+    description: 'Invite workforce members',
+    riskLevel: 'MEDIUM',
+    isPlatform: false,
+    isOwnerOnly: false,
+    assignable: true,
+  },
+  {
+    key: P.MEMBERS_UPDATE,
+    domain: 'members',
+    description: 'Update membership metadata and status',
+    riskLevel: 'HIGH',
+    isPlatform: false,
+    isOwnerOnly: false,
+    assignable: true,
+  },
+  {
+    key: P.MEMBERS_SUSPEND,
+    domain: 'members',
+    description: 'Suspend memberships',
+    riskLevel: 'HIGH',
+    isPlatform: false,
+    isOwnerOnly: false,
+    assignable: true,
+  },
+  {
+    key: P.MEMBERS_REMOVE,
+    domain: 'members',
+    description: 'Remove memberships',
+    riskLevel: 'HIGH',
+    isPlatform: false,
+    isOwnerOnly: false,
+    assignable: true,
+  },
+  {
+    key: P.MEMBERS_ROLES_ASSIGN,
+    domain: 'members',
+    description: 'Assign roles to memberships',
+    riskLevel: 'HIGH',
+    isPlatform: false,
+    isOwnerOnly: false,
+    assignable: true,
+  },
+  {
+    key: P.ROLES_LIST,
+    domain: 'roles',
+    description: 'List roles',
+    riskLevel: 'LOW',
+    isPlatform: false,
+    isOwnerOnly: false,
+    assignable: true,
+  },
+  {
+    key: P.ROLES_VIEW,
+    domain: 'roles',
+    description: 'View role detail',
+    riskLevel: 'LOW',
+    isPlatform: false,
+    isOwnerOnly: false,
+    assignable: true,
+  },
+  {
+    key: P.ROLES_CREATE,
+    domain: 'roles',
+    description: 'Create custom roles',
+    riskLevel: 'HIGH',
+    isPlatform: false,
+    isOwnerOnly: false,
+    assignable: true,
+  },
+  {
+    key: P.ROLES_UPDATE,
+    domain: 'roles',
+    description: 'Update custom roles',
+    riskLevel: 'HIGH',
+    isPlatform: false,
+    isOwnerOnly: false,
+    assignable: true,
+  },
+  {
+    key: P.ROLES_DELETE,
+    domain: 'roles',
+    description: 'Retire custom roles',
+    riskLevel: 'HIGH',
+    isPlatform: false,
+    isOwnerOnly: false,
+    assignable: true,
+  },
+  {
+    key: P.AUDIT_EVENTS_VIEW,
+    domain: 'audit',
+    description: 'View audit events',
+    riskLevel: 'MEDIUM',
+    isPlatform: false,
+    isOwnerOnly: false,
+    assignable: true,
+  },
+  seed(P.PROPERTIES_LIST, 'properties', 'List properties'),
+  seed(P.PROPERTIES_VIEW, 'properties', 'View property detail'),
+  seed(P.PROPERTIES_CREATE, 'properties', 'Create properties', 'MEDIUM'),
+  seed(P.PROPERTIES_UPDATE, 'properties', 'Update properties', 'MEDIUM'),
+  seed(P.PROPERTIES_ARCHIVE, 'properties', 'Archive properties', 'HIGH'),
+  seed(P.PROPERTIES_ASSIGN_STAFF, 'properties', 'Assign staff to properties', 'HIGH'),
+  seed(P.UNITS_LIST, 'units', 'List units'),
+  seed(P.UNITS_VIEW, 'units', 'View unit detail'),
+  seed(P.UNITS_CREATE, 'units', 'Create units', 'MEDIUM'),
+  seed(P.UNITS_UPDATE, 'units', 'Update units', 'MEDIUM'),
+  seed(P.UNITS_ARCHIVE, 'units', 'Archive units', 'HIGH'),
+  seed(P.BEDS_LIST, 'beds', 'List beds'),
+  seed(P.BEDS_VIEW, 'beds', 'View bed detail'),
+  seed(P.BEDS_CREATE, 'beds', 'Create beds', 'MEDIUM'),
+  seed(P.BEDS_UPDATE, 'beds', 'Update beds', 'MEDIUM'),
+  seed(P.BEDS_ARCHIVE, 'beds', 'Archive beds', 'HIGH'),
+  seed(P.PROPERTY_OWNERS_LIST, 'property_owners', 'List property owners'),
+  seed(P.PROPERTY_OWNERS_VIEW, 'property_owners', 'View property owner detail'),
+  seed(P.PROPERTY_OWNERS_CREATE, 'property_owners', 'Create property owners', 'MEDIUM'),
+  seed(P.PROPERTY_OWNERS_UPDATE, 'property_owners', 'Update property owners', 'MEDIUM'),
+  seed(P.PROPERTY_OWNERSHIPS_VIEW, 'property_ownerships', 'View property ownerships'),
+  seed(P.PROPERTY_OWNERSHIPS_CREATE, 'property_ownerships', 'Create property ownerships', 'HIGH'),
+  seed(P.PROPERTY_OWNERSHIPS_END, 'property_ownerships', 'End property ownerships', 'HIGH'),
+  seed(P.MANAGEMENT_AGREEMENTS_LIST, 'management_agreements', 'List management agreements'),
+  seed(P.MANAGEMENT_AGREEMENTS_VIEW, 'management_agreements', 'View management agreement detail'),
+  seed(
+    P.MANAGEMENT_AGREEMENTS_CREATE,
+    'management_agreements',
+    'Create management agreements',
+    'HIGH',
+  ),
+  seed(
+    P.MANAGEMENT_AGREEMENTS_UPDATE,
+    'management_agreements',
+    'Update management agreements',
+    'HIGH',
+  ),
+  seed(
+    P.MANAGEMENT_AGREEMENTS_ACTIVATE,
+    'management_agreements',
+    'Activate management agreements',
+    'HIGH',
+  ),
+  seed(
+    P.MANAGEMENT_AGREEMENTS_TERMINATE,
+    'management_agreements',
+    'Terminate management agreements',
+    'HIGH',
+  ),
+  seed(P.OCCUPANCY_VIEW, 'occupancy', 'View occupancy and availability'),
+  seed(P.IMPORTS_INVENTORY, 'imports', 'Run inventory imports', 'HIGH'),
+  seed(P.EXPORTS_INVENTORY, 'exports', 'Export inventory', 'MEDIUM'),
+  seed(P.OPERATIONS_READ, 'operations', 'View operations center jobs', 'LOW'),
+  {
+    key: P.PLATFORM_ORGANIZATIONS_LIST,
+    domain: 'platform',
+    description: 'List platform organizations',
+    riskLevel: 'HIGH',
+    isPlatform: true,
+    isOwnerOnly: false,
+    assignable: false,
+  },
+  {
+    key: P.PLATFORM_SUPPORT_ACCESS_USE,
+    domain: 'platform',
+    description: 'Use approved support access',
+    riskLevel: 'CRITICAL',
+    isPlatform: true,
+    isOwnerOnly: false,
+    assignable: false,
+  },
+  {
+    key: P.SUPPORT_ELEVATE,
+    domain: 'platform',
+    description: 'Elevate support access',
+    riskLevel: 'CRITICAL',
+    isPlatform: true,
+    isOwnerOnly: false,
+    assignable: false,
+  },
+  // Placeholder for SoD warning combinations
+  {
+    key: 'finance.payments.refund',
+    domain: 'finance',
+    description: 'Refund payments (later sprint)',
+    riskLevel: 'CRITICAL',
+    isPlatform: false,
+    isOwnerOnly: false,
+    assignable: true,
+  },
+];
+
+const OWNER_KEYS = PERMISSION_CATALOG.filter((p) => !p.isPlatform).map((p) => p.key);
+
+const ADMIN_KEYS = OWNER_KEYS.filter(
+  (key) =>
+    !(OWNER_ONLY_PERMISSION_KEYS as readonly string[]).includes(key) &&
+    !(PLATFORM_PERMISSION_KEYS as readonly string[]).includes(key),
+);
+
+/** Inventory + occupancy view keys for auditors (no mutations). */
+const AUDITOR_KEYS = [
+  P.ORGANIZATION_PROFILE_VIEW,
+  P.ORGANIZATION_SECURITY_VIEW,
+  P.MEMBERS_LIST,
+  P.MEMBERS_VIEW,
+  P.ROLES_LIST,
+  P.ROLES_VIEW,
+  P.AUDIT_EVENTS_VIEW,
+  P.PROPERTIES_LIST,
+  P.PROPERTIES_VIEW,
+  P.UNITS_LIST,
+  P.UNITS_VIEW,
+  P.BEDS_LIST,
+  P.BEDS_VIEW,
+  P.PROPERTY_OWNERS_LIST,
+  P.PROPERTY_OWNERS_VIEW,
+  P.PROPERTY_OWNERSHIPS_VIEW,
+  P.MANAGEMENT_AGREEMENTS_LIST,
+  P.MANAGEMENT_AGREEMENTS_VIEW,
+  P.OCCUPANCY_VIEW,
+  P.OPERATIONS_READ,
+] as const;
+
+/** Property Manager: inventory + occupancy on assigned properties (not org admin). */
+const PROPERTY_MANAGER_KEYS = [
+  P.PROPERTIES_LIST,
+  P.PROPERTIES_VIEW,
+  P.PROPERTIES_CREATE,
+  P.PROPERTIES_UPDATE,
+  P.PROPERTIES_ARCHIVE,
+  P.UNITS_LIST,
+  P.UNITS_VIEW,
+  P.UNITS_CREATE,
+  P.UNITS_UPDATE,
+  P.UNITS_ARCHIVE,
+  P.BEDS_LIST,
+  P.BEDS_VIEW,
+  P.BEDS_CREATE,
+  P.BEDS_UPDATE,
+  P.BEDS_ARCHIVE,
+  P.OCCUPANCY_VIEW,
+  P.PROPERTY_OWNERS_LIST,
+  P.PROPERTY_OWNERS_VIEW,
+  P.PROPERTY_OWNERSHIPS_VIEW,
+  P.MANAGEMENT_AGREEMENTS_LIST,
+  P.MANAGEMENT_AGREEMENTS_VIEW,
+  P.OPERATIONS_READ,
+  P.EXPORTS_INVENTORY,
+] as const;
+
+export const SYSTEM_ROLE_CATALOG: readonly SystemRoleSeed[] = [
+  {
+    key: SYSTEM_ROLE_KEYS.OWNER,
+    name: 'Organization Owner',
+    description: 'Ultimate administrative control for one organization',
+    status: 'ACTIVE',
+    maximumScope: 'ORGANIZATION',
+    permissionKeys: OWNER_KEYS,
+  },
+  {
+    key: SYSTEM_ROLE_KEYS.ADMIN,
+    name: 'Organization Administrator',
+    description: 'Manages configuration, users, and settings without owner-only actions',
+    status: 'ACTIVE',
+    maximumScope: 'ORGANIZATION',
+    permissionKeys: ADMIN_KEYS,
+  },
+  {
+    key: SYSTEM_ROLE_KEYS.PROPERTY_MANAGER,
+    name: 'Property Manager',
+    description: 'Runs assigned properties including inventory and occupancy views',
+    status: 'ACTIVE',
+    maximumScope: 'PROPERTY',
+    permissionKeys: PROPERTY_MANAGER_KEYS,
+  },
+  {
+    key: SYSTEM_ROLE_KEYS.ACCOUNTANT,
+    name: 'Accountant',
+    description: 'Stub until finance modules exist',
+    status: 'INACTIVE',
+    maximumScope: 'ORGANIZATION',
+    permissionKeys: [P.ORGANIZATION_PROFILE_VIEW, P.AUDIT_EVENTS_VIEW],
+  },
+  {
+    key: SYSTEM_ROLE_KEYS.MAINTENANCE,
+    name: 'Maintenance Staff',
+    description: 'Stub until maintenance modules exist',
+    status: 'INACTIVE',
+    maximumScope: 'PROPERTY',
+    permissionKeys: [P.PROPERTIES_VIEW],
+  },
+  {
+    key: SYSTEM_ROLE_KEYS.AUDITOR,
+    name: 'Read-only Auditor',
+    description: 'View permitted records without mutation rights',
+    status: 'ACTIVE',
+    maximumScope: 'ORGANIZATION',
+    permissionKeys: AUDITOR_KEYS,
+  },
+];
+
+export const MUTATION_PERMISSION_PREFIXES = [
+  'members.invite',
+  'members.update',
+  'members.suspend',
+  'members.remove',
+  'members.roles.assign',
+  'roles.create',
+  'roles.update',
+  'roles.delete',
+  'organization.profile.update',
+  'organization.security.update',
+  'organization.ownership.transfer',
+  'organization.delete',
+  'properties.create',
+  'properties.update',
+  'properties.archive',
+  'properties.assign_staff',
+  'units.create',
+  'units.update',
+  'units.archive',
+  'beds.create',
+  'beds.update',
+  'beds.archive',
+  'property_owners.create',
+  'property_owners.update',
+  'property_ownerships.create',
+  'property_ownerships.end',
+  'management_agreements.create',
+  'management_agreements.update',
+  'management_agreements.activate',
+  'management_agreements.terminate',
+  'imports.inventory',
+  'exports.inventory',
+] as const;
+
+export function isReadOnlyPermissionSet(permissionKeys: readonly string[]): boolean {
+  return !permissionKeys.some((key) =>
+    (MUTATION_PERMISSION_PREFIXES as readonly string[]).includes(key),
+  );
+}

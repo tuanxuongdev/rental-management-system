@@ -1,0 +1,134 @@
+/// Parties CRM subset for Property Owners (Sprint-05). Property ownership ≠ login access.
+
+enum PartyType {
+  PERSON
+  ORGANIZATION
+}
+
+enum PartyStatus {
+  ACTIVE
+  ARCHIVED
+}
+
+enum OwnerCategory {
+  INDIVIDUAL
+  COMPANY
+  TRUST
+  OTHER
+}
+
+model Party {
+  id          String      @id @default(uuid()) @db.Uuid
+  tenantId    String      @map("tenant_id") @db.Uuid
+  partyType   PartyType   @map("party_type")
+  displayName String      @map("display_name")
+  legalName   String?     @map("legal_name")
+  status      PartyStatus @default(ACTIVE)
+  version     Int         @default(1)
+  createdAt   DateTime    @default(now()) @map("created_at")
+  updatedAt   DateTime    @updatedAt @map("updated_at")
+  deletedAt   DateTime?   @map("deleted_at")
+
+  tenant                 Tenant                    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  contacts               PartyContact[]
+  ownerProfile           OwnerProfile?
+  propertyOwnerships     PropertyOwnership[]
+  managementAgreementParties ManagementAgreementParty[]
+
+  @@index([tenantId, status])
+  @@index([tenantId, displayName])
+  @@map("parties")
+}
+
+model PartyContact {
+  id        String   @id @default(uuid()) @db.Uuid
+  tenantId  String   @map("tenant_id") @db.Uuid
+  partyId   String   @map("party_id") @db.Uuid
+  type      String
+  value     String
+  purpose   String?
+  isPreferred Boolean @default(false) @map("is_preferred")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  party Party @relation(fields: [partyId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, partyId])
+  @@map("party_contacts")
+}
+
+model OwnerProfile {
+  id            String        @id @default(uuid()) @db.Uuid
+  tenantId      String        @map("tenant_id") @db.Uuid
+  partyId       String        @unique @map("party_id") @db.Uuid
+  ownerCategory OwnerCategory @default(INDIVIDUAL) @map("owner_category")
+  notes         String?
+  createdAt     DateTime      @default(now()) @map("created_at")
+  updatedAt     DateTime      @updatedAt @map("updated_at")
+
+  party Party @relation(fields: [partyId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, partyId])
+  @@map("owner_profiles")
+}
+
+model PropertyOwnership {
+  id                   String    @id @default(uuid()) @db.Uuid
+  tenantId             String    @map("tenant_id") @db.Uuid
+  propertyId           String    @map("property_id") @db.Uuid
+  ownerPartyId         String    @map("owner_party_id") @db.Uuid
+  interestType         String    @default("EQUITY") @map("interest_type")
+  ownershipPercentage  Decimal?  @map("ownership_percentage") @db.Decimal(7, 4)
+  effectiveFrom        DateTime  @map("effective_from")
+  effectiveTo          DateTime? @map("effective_to")
+  status               String    @default("ACTIVE")
+  version              Int       @default(1)
+  createdAt            DateTime  @default(now()) @map("created_at")
+  updatedAt            DateTime  @updatedAt @map("updated_at")
+
+  property Property @relation(fields: [propertyId], references: [id], onDelete: Restrict)
+  owner    Party    @relation(fields: [ownerPartyId], references: [id], onDelete: Restrict)
+
+  @@index([tenantId, propertyId])
+  @@index([tenantId, ownerPartyId])
+  @@map("property_ownerships")
+}
+
+model ManagementAgreement {
+  id              String    @id @default(uuid()) @db.Uuid
+  tenantId        String    @map("tenant_id") @db.Uuid
+  propertyId      String    @map("property_id") @db.Uuid
+  agreementNumber String    @map("agreement_number")
+  status          String    @default("DRAFT")
+  effectiveFrom   DateTime  @map("effective_from")
+  effectiveTo     DateTime? @map("effective_to")
+  notes           String?
+  version         Int       @default(1)
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  property Property                   @relation(fields: [propertyId], references: [id], onDelete: Restrict)
+  parties  ManagementAgreementParty[]
+
+  @@index([tenantId, propertyId])
+  @@index([tenantId, status])
+  @@map("management_agreements")
+}
+
+model ManagementAgreementParty {
+  id          String    @id @default(uuid()) @db.Uuid
+  tenantId    String    @map("tenant_id") @db.Uuid
+  agreementId String    @map("agreement_id") @db.Uuid
+  partyId     String    @map("party_id") @db.Uuid
+  role        String
+  effectiveFrom DateTime @default(now()) @map("effective_from")
+  effectiveTo   DateTime? @map("effective_to")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  agreement ManagementAgreement @relation(fields: [agreementId], references: [id], onDelete: Cascade)
+  party     Party               @relation(fields: [partyId], references: [id], onDelete: Restrict)
+
+  @@index([tenantId, agreementId])
+  @@map("management_agreement_parties")
+}

@@ -22,8 +22,10 @@ import { EmailService } from '../../infrastructure/email/email.service';
 import { TransactionService } from '../../infrastructure/persistence/transaction.service';
 import { RateLimitService } from '../../infrastructure/rate-limit/rate-limit.service';
 import { AuditService } from '../audit/audit.service';
+import { AuthorizationService } from '../tenancy/application/authorization.service';
 import { InvitationService } from '../tenancy/application/invitation.service';
 import { OrganizationService } from '../tenancy/application/organization.service';
+import { RbacSeedService } from '../tenancy/application/rbac-seed.service';
 
 import { AuthService } from './application/auth.service';
 
@@ -80,6 +82,7 @@ describe.skipIf(!databaseAvailable)('Auth integration (Sprint-03)', () => {
   const rateLimit = new RateLimitService();
   const email = new EmailService(testApiConfig as never);
   const audit = new AuditService(prisma as never);
+  const rbacSeed = new RbacSeedService(prisma as never);
   const auth = new AuthService(
     prisma as never,
     transactions,
@@ -93,11 +96,21 @@ describe.skipIf(!databaseAvailable)('Auth integration (Sprint-03)', () => {
     audit,
     testApiConfig,
   );
-  const organizations = new OrganizationService(prisma as never, transactions, audit);
-  const invitations = new InvitationService(prisma as never, transactions, tokenHash, email, audit);
+  const organizations = new OrganizationService(prisma as never, transactions, audit, rbacSeed);
+  const authorization = new AuthorizationService(prisma as never);
+  const invitations = new InvitationService(
+    prisma as never,
+    transactions,
+    tokenHash,
+    email,
+    audit,
+    rbacSeed,
+    authorization,
+  );
 
   beforeAll(async () => {
     await resetPlatformTables(prisma);
+    await rbacSeed.ensureCatalog();
   });
 
   afterAll(async () => {

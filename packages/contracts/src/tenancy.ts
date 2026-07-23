@@ -39,6 +39,7 @@ export const createInvitationRequestSchema = z.object({
   email: z.string().email().max(320),
   message: z.string().max(500).optional(),
   expiresInHours: z.number().int().min(1).max(168).optional(),
+  proposedRoleIds: z.array(z.string().uuid()).optional(),
 });
 
 export type CreateInvitationRequest = z.infer<typeof createInvitationRequestSchema>;

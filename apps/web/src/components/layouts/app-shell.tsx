@@ -1,38 +1,60 @@
 'use client';
 
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { usePathname, useRouter } from 'next/navigation';
+import { useMemo, type ReactNode } from 'react';
 
 import type { MeResponse } from '@rpm/contracts';
 
+import { OrganizationSwitcher, ReadOnlyBanner, SupportAccessBanner, useMe } from '@/features/admin';
+import { IMPORT_PERMISSIONS, hasPermission } from '@/features/imports';
+import { PropertyScopeSelector } from '@/features/inventory';
 import { logoutRequest } from '@/lib/auth-api';
 import { useAuthStore } from '@/state/auth-store';
 
-import type { ReactNode } from 'react';
+const homeNav = { href: '/app', label: 'Home' } as const;
 
-const navItems = [
-  { href: '/app', label: 'Home' },
-  { href: '/app/placeholder', label: 'Placeholder' },
+const portfolioNav = [
+  { href: '/app/portfolio/properties', label: 'Properties' },
+  { href: '/app/portfolio/units', label: 'Units' },
+  { href: '/app/portfolio/availability', label: 'Availability' },
+  { href: '/app/portfolio/owners', label: 'Property Owners' },
+  { href: '/app/portfolio/agreements', label: 'Management Agreements' },
 ] as const;
+
+const adminNavBase = [
+  { href: '/app/admin/users', label: 'Users' },
+  { href: '/app/admin/invitations', label: 'Invitations' },
+  { href: '/app/admin/roles', label: 'Roles' },
+  { href: '/app/admin/settings', label: 'Settings' },
+] as const;
+
+function navClassName(active: boolean): string {
+  return [
+    'rounded-md px-3 py-2 text-sm',
+    active ? 'bg-accent text-foreground font-medium' : 'text-foreground hover:bg-accent',
+  ].join(' ');
+}
+
+function buildAdminNav(me: MeResponse | undefined) {
+  const items: { href: string; label: string }[] = [...adminNavBase];
+  if (hasPermission(me, IMPORT_PERMISSIONS.importsInventory)) {
+    items.push({ href: '/app/admin/imports', label: 'Imports' });
+  }
+  return items;
+}
 
 export function AppShell({ children }: { children: ReactNode }): ReactNode {
   const router = useRouter();
+  const pathname = usePathname();
   const accessToken = useAuthStore((state) => state.accessToken);
   const clearSession = useAuthStore((state) => state.clearSession);
-  const [me, setMe] = useState<MeResponse | null>(null);
+  const switchingOrganization = useAuthStore((state) => state.switchingOrganization);
+  const meQuery = useMe();
+  const me = meQuery.data;
 
-  useEffect(() => {
-    if (!accessToken) {
-      return;
-    }
-
-    void import('@/lib/auth-api').then(({ fetchMe }) =>
-      fetchMe(accessToken)
-        .then(setMe)
-        .catch(() => setMe(null)),
-    );
-  }, [accessToken]);
+  const adminNav = useMemo(() => buildAdminNav(me), [me]);
+  const showOperations = hasPermission(me, IMPORT_PERMISSIONS.operationsRead);
 
   async function onLogout(): Promise<void> {
     try {
@@ -50,16 +72,71 @@ export function AppShell({ children }: { children: ReactNode }): ReactNode {
           <p className="text-sm font-semibold">{me?.organization?.displayName ?? 'Organization'}</p>
           <p className="text-muted-foreground text-xs">{me?.user.email ?? 'Signed in'}</p>
         </div>
+        <OrganizationSwitcher />
+        <PropertyScopeSelector />
         <nav className="flex flex-1 flex-col gap-1 p-3" aria-label="Primary">
-          {navItems.map((item) => (
-            <Link
-              key={item.href}
-              href={item.href}
-              className="text-foreground hover:bg-accent rounded-md px-3 py-2 text-sm"
-            >
-              {item.label}
-            </Link>
-          ))}
+          <Link
+            href={homeNav.href}
+            className={navClassName(pathname === homeNav.href)}
+            aria-current={pathname === homeNav.href ? 'page' : undefined}
+          >
+            {homeNav.label}
+          </Link>
+
+          <p className="text-muted-foreground px-3 pb-1 pt-4 text-xs font-semibold uppercase tracking-wide">
+            Portfolio
+          </p>
+          {portfolioNav.map((item) => {
+            const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                className={navClassName(active)}
+                aria-current={active ? 'page' : undefined}
+              >
+                {item.label}
+              </Link>
+            );
+          })}
+
+          {showOperations ? (
+            <>
+              <p className="text-muted-foreground px-3 pb-1 pt-4 text-xs font-semibold uppercase tracking-wide">
+                Shell
+              </p>
+              <Link
+                href="/app/operations"
+                className={navClassName(
+                  pathname === '/app/operations' || pathname.startsWith('/app/operations/'),
+                )}
+                aria-current={
+                  pathname === '/app/operations' || pathname.startsWith('/app/operations/')
+                    ? 'page'
+                    : undefined
+                }
+              >
+                Operations
+              </Link>
+            </>
+          ) : null}
+
+          <p className="text-muted-foreground px-3 pb-1 pt-4 text-xs font-semibold uppercase tracking-wide">
+            Administration
+          </p>
+          {adminNav.map((item) => {
+            const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                className={navClassName(active)}
+                aria-current={active ? 'page' : undefined}
+              >
+                {item.label}
+              </Link>
+            );
+          })}
         </nav>
       </aside>
       <div className="flex min-w-0 flex-1 flex-col">
@@ -73,7 +150,15 @@ export function AppShell({ children }: { children: ReactNode }): ReactNode {
             Sign out
           </button>
         </header>
-        <main className="flex-1 px-4 py-6 md:px-6">{children}</main>
+        <ReadOnlyBanner visible={Boolean(me?.isReadOnly)} />
+        <SupportAccessBanner />
+        <main className="flex-1 px-4 py-6 md:px-6">
+          {switchingOrganization ? (
+            <p className="text-muted-foreground text-sm">Switching Organization…</p>
+          ) : (
+            children
+          )}
+        </main>
       </div>
     </div>
   );

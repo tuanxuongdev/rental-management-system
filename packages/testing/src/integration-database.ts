@@ -29,6 +29,39 @@ export async function isDatabaseReachable(): Promise<boolean> {
 }
 
 export async function resetPlatformTables(prisma: PrismaClient): Promise<void> {
+  // Import/export first (FK to tenants)
+  await prisma.importJobRow.deleteMany();
+  await prisma.importJob.deleteMany();
+  await prisma.exportJob.deleteMany();
+  await prisma.importMappingPreset.deleteMany();
+
+  // Inventory / parties children first (FK order), then RBAC, then tenancy/identity
+  await prisma.inventoryStatusHistory.deleteMany();
+  await prisma.unitAmenity.deleteMany();
+  await prisma.propertyAmenity.deleteMany();
+  await prisma.bed.deleteMany();
+  await prisma.unit.deleteMany();
+  await prisma.floor.deleteMany();
+  await prisma.building.deleteMany();
+  await prisma.ratePlan.deleteMany();
+  await prisma.unitType.deleteMany();
+  await prisma.amenity.deleteMany();
+  await prisma.managementAgreementParty.deleteMany();
+  await prisma.managementAgreement.deleteMany();
+  await prisma.propertyOwnership.deleteMany();
+  await prisma.ownerProfile.deleteMany();
+  await prisma.partyContact.deleteMany();
+  await prisma.party.deleteMany();
+  await prisma.property.deleteMany();
+
+  // RBAC child tables first (membership_roles Restrict on roles)
+  await prisma.privilegedAccessEvent.deleteMany();
+  await prisma.propertyAccessGrant.deleteMany();
+  await prisma.membershipRole.deleteMany();
+  await prisma.rolePermission.deleteMany();
+  await prisma.role.deleteMany();
+  await prisma.permission.deleteMany();
+
   await prisma.auditEvent.deleteMany();
   await prisma.invitation.deleteMany();
   await prisma.tenantMembership.deleteMany();

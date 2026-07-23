@@ -55,6 +55,7 @@ Thumbs.db
 # Docker / local volumes
 *.pid
 docker-data/
+.data/
 
 # Misc
 tmp/

@@ -1,0 +1,152 @@
+/// Roles, permissions, membership assignments, and property-scope grants (Sprint-04).
+
+enum PermissionRiskLevel {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum RoleStatus {
+  ACTIVE
+  RETIRED
+  INACTIVE
+}
+
+enum RoleMaximumScope {
+  ORGANIZATION
+  PROPERTY
+  SELF
+}
+
+enum PropertyAccessScopeType {
+  ALL_PROPERTIES
+  SELECTED_PROPERTIES
+}
+
+enum PrivilegedAccessStatus {
+  REQUESTED
+  APPROVED
+  ACTIVE
+  ENDED
+  DENIED
+  REVOKED
+}
+
+model Permission {
+  id          String              @id @default(uuid()) @db.Uuid
+  key         String              @unique
+  domain      String
+  description String
+  riskLevel   PermissionRiskLevel @default(MEDIUM) @map("risk_level")
+  isPlatform  Boolean             @default(false) @map("is_platform")
+  isOwnerOnly Boolean             @default(false) @map("is_owner_only")
+  assignable  Boolean             @default(true)
+  createdAt   DateTime            @default(now()) @map("created_at")
+  updatedAt   DateTime            @updatedAt @map("updated_at")
+
+  rolePermissions RolePermission[]
+
+  @@index([domain])
+  @@map("permissions")
+}
+
+model Role {
+  id            String           @id @default(uuid()) @db.Uuid
+  tenantId      String?          @map("tenant_id") @db.Uuid
+  key           String
+  name          String
+  description   String?
+  isSystem      Boolean          @default(false) @map("is_system")
+  status        RoleStatus       @default(ACTIVE)
+  maximumScope  RoleMaximumScope @default(ORGANIZATION) @map("maximum_scope")
+  version       Int              @default(1)
+  createdAt     DateTime         @default(now()) @map("created_at")
+  updatedAt     DateTime         @updatedAt @map("updated_at")
+
+  tenant          Tenant?           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  rolePermissions RolePermission[]
+  membershipRoles MembershipRole[]
+
+  @@unique([tenantId, key])
+  @@index([tenantId, status])
+  @@map("roles")
+}
+
+model RolePermission {
+  id           String    @id @default(uuid()) @db.Uuid
+  roleId       String    @map("role_id") @db.Uuid
+  permissionId String    @map("permission_id") @db.Uuid
+  effectiveFrom DateTime @default(now()) @map("effective_from")
+  effectiveTo   DateTime? @map("effective_to")
+  createdAt    DateTime  @default(now()) @map("created_at")
+
+  role       Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@unique([roleId, permissionId])
+  @@map("role_permissions")
+}
+
+model MembershipRole {
+  id           String    @id @default(uuid()) @db.Uuid
+  tenantId     String    @map("tenant_id") @db.Uuid
+  membershipId String    @map("membership_id") @db.Uuid
+  roleId       String    @map("role_id") @db.Uuid
+  assignedByUserId String? @map("assigned_by_user_id") @db.Uuid
+  effectiveFrom DateTime @default(now()) @map("effective_from")
+  effectiveTo   DateTime? @map("effective_to")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  membership TenantMembership @relation(fields: [membershipId], references: [id], onDelete: Cascade)
+  role       Role             @relation(fields: [roleId], references: [id], onDelete: Restrict)
+  tenant     Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([membershipId])
+  @@index([tenantId, roleId])
+  @@index([membershipId, effectiveTo])
+  @@map("membership_roles")
+}
+
+/// Property-scoped grants — enforced for Property Managers (Sprint-05).
+model PropertyAccessGrant {
+  id           String                   @id @default(uuid()) @db.Uuid
+  tenantId     String                   @map("tenant_id") @db.Uuid
+  membershipId String                   @map("membership_id") @db.Uuid
+  /// Null when scopeType is ALL_PROPERTIES; required for SELECTED_PROPERTIES.
+  propertyId   String?                  @map("property_id") @db.Uuid
+  scopeType    PropertyAccessScopeType  @default(ALL_PROPERTIES) @map("scope_type")
+  effectiveFrom DateTime                @default(now()) @map("effective_from")
+  effectiveTo   DateTime?               @map("effective_to")
+  createdAt    DateTime                 @default(now()) @map("created_at")
+  updatedAt    DateTime                 @updatedAt @map("updated_at")
+
+  membership TenantMembership @relation(fields: [membershipId], references: [id], onDelete: Cascade)
+  tenant     Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  property   Property?        @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, membershipId])
+  @@index([tenantId, propertyId])
+  @@map("property_access_grants")
+}
+
+/// Support elevation skeleton — no silent impersonation path.
+model PrivilegedAccessEvent {
+  id               String                 @id @default(uuid()) @db.Uuid
+  targetTenantId   String                 @map("target_tenant_id") @db.Uuid
+  actorUserId      String                 @map("actor_user_id") @db.Uuid
+  reason           String
+  supportCaseRef   String?                @map("support_case_ref")
+  status           PrivilegedAccessStatus @default(REQUESTED)
+  approvedByUserId String?                @map("approved_by_user_id") @db.Uuid
+  startsAt         DateTime?              @map("starts_at")
+  endsAt           DateTime?              @map("ends_at")
+  createdAt        DateTime               @default(now()) @map("created_at")
+  updatedAt        DateTime               @updatedAt @map("updated_at")
+
+  targetTenant Tenant @relation(fields: [targetTenantId], references: [id], onDelete: Cascade)
+
+  @@index([targetTenantId, status])
+  @@map("privileged_access_events")
+}

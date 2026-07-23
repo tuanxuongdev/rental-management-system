@@ -28,3 +28,7 @@
 ## 4. Escalation
 
 Document incident timeline, impact, root cause, and follow-up actions in the team incident tracker.
+
+## 5. Access administration (membership / session)
+
+For revoke membership, force re-login, and invitation revoke steps, see [access-admin.md](./access-admin.md).

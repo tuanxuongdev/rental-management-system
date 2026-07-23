@@ -5,7 +5,7 @@
 **Program references:** [project-roadmap.md](../project-roadmap.md) · [dependency-map.md](../dependency-map.md) · [06-permission-system.md](../06-permission-system.md) · [05-authentication.md](../05-authentication.md)  
 **UI references:** [ui/shell/organization-switcher.md](../ui/shell/organization-switcher.md) · [ui/admin/users-list.md](../ui/admin/users-list.md) · [ui/admin/user-detail.md](../ui/admin/user-detail.md) · [ui/admin/invitations-list.md](../ui/admin/invitations-list.md) · [ui/admin/roles-list.md](../ui/admin/roles-list.md) · [ui/admin/role-editor.md](../ui/admin/role-editor.md) · [ui/admin/organization-settings.md](../ui/admin/organization-settings.md) · [ui/cross-cutting-patterns.md](../ui/cross-cutting-patterns.md)  
 **Duration:** 2 weeks  
-**Status:** Ready for planning  
+**Status:** Implemented / Reviewed — see docs/reviews/Sprint-04-Review.md  
 **Builds on:** [Sprint-03.md](./Sprint-03.md)
 
 ---

@@ -5,7 +5,7 @@
 **Program references:** [project-roadmap.md](../project-roadmap.md) · [dependency-map.md](../dependency-map.md) · [03-database-design.md](../03-database-design.md) · [04-api-specification.md](../04-api-specification.md)  
 **UI references:** [ui/portfolio/properties-list.md](../ui/portfolio/properties-list.md) · [ui/portfolio/property-detail.md](../ui/portfolio/property-detail.md) · [ui/portfolio/property-create-edit.md](../ui/portfolio/property-create-edit.md) · [ui/portfolio/buildings-list.md](../ui/portfolio/buildings-list.md) · [ui/portfolio/units-list.md](../ui/portfolio/units-list.md) · [ui/portfolio/unit-detail.md](../ui/portfolio/unit-detail.md) · [ui/portfolio/unit-create-edit.md](../ui/portfolio/unit-create-edit.md) · [ui/portfolio/beds-list.md](../ui/portfolio/beds-list.md) · [ui/portfolio/availability-lookup.md](../ui/portfolio/availability-lookup.md) · [ui/portfolio/property-owners-list.md](../ui/portfolio/property-owners-list.md) · [ui/portfolio/property-owner-detail.md](../ui/portfolio/property-owner-detail.md) · [ui/portfolio/management-agreements-list.md](../ui/portfolio/management-agreements-list.md) · [ui/portfolio/management-agreement-detail.md](../ui/portfolio/management-agreement-detail.md) · [navigation.md](../navigation.md)  
 **Duration:** 2 weeks  
-**Status:** Ready for planning  
+**Status:** Implemented / Reviewed — see docs/reviews/Sprint-05-Review.md  
 **Builds on:** [Sprint-04.md](./Sprint-04.md)
 
 ---

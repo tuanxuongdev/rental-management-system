@@ -4,6 +4,7 @@ import {
   AUTH_LOGIN_PATH,
   AUTH_LOGOUT_PATH,
   AUTH_MFA_CHALLENGE_PATH,
+  AUTH_ORGANIZATION_SWITCH_PATH,
   AUTH_PASSWORD_FORGOT_PATH,
   AUTH_PASSWORD_RESET_PATH,
   AUTH_REFRESH_PATH,
@@ -16,11 +17,15 @@ import {
   loginResultSchema,
   loginResponseSchema,
   meResponseSchema,
+  organizationSwitchRequestSchema,
+  organizationSwitchResponseSchema,
   problemDetailsSchema,
   type LoginRequest,
   type LoginResponse,
   type LoginResult,
   type MeResponse,
+  type OrganizationSwitchRequest,
+  type OrganizationSwitchResponse,
 } from '@rpm/contracts';
 
 import { createRequestId } from './request-id';
@@ -52,7 +57,11 @@ async function parseProblem(response: Response): Promise<AuthApiError> {
   );
 }
 
-async function authFetch(path: string, init: RequestInit = {}, accessToken?: string | null) {
+export async function authFetch(
+  path: string,
+  init: RequestInit = {},
+  accessToken?: string | null,
+): Promise<Response> {
   const headers = new Headers(init.headers);
   headers.set('Accept', 'application/json');
   headers.set(REQUEST_ID_HEADER, createRequestId());
@@ -192,6 +201,19 @@ export async function acceptInvitationRequest(
     expiresIn: number;
     membership: { id: string; organizationId: string; status: string };
   }>;
+}
+
+export async function switchOrganizationRequest(
+  accessToken: string,
+  body: OrganizationSwitchRequest,
+): Promise<OrganizationSwitchResponse> {
+  organizationSwitchRequestSchema.parse(body);
+  const response = await authFetch(
+    AUTH_ORGANIZATION_SWITCH_PATH,
+    { method: 'POST', body: JSON.stringify(body) },
+    accessToken,
+  );
+  return organizationSwitchResponseSchema.parse(await response.json());
 }
 
 export { REFRESH_COOKIE_NAME, apiBaseUrl };

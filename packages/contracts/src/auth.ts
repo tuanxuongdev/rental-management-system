@@ -145,8 +145,19 @@ export const meResponseSchema = z.object({
   user: userSummarySchema,
   membership: membershipSummarySchema.nullable(),
   organization: organizationSummarySchema.nullable(),
+  memberships: z.array(
+    z.object({
+      id: z.string().uuid(),
+      organizationId: z.string().uuid(),
+      organizationDisplayName: z.string(),
+      organizationSlug: z.string(),
+      status: z.enum(['PENDING', 'ACTIVE', 'SUSPENDED']),
+      roles: z.array(z.string()),
+    }),
+  ),
   roles: z.array(z.string()),
   permissionKeys: z.array(z.string()),
+  isReadOnly: z.boolean(),
   assurance: z.object({
     level: z.string(),
     validUntil: z.string().datetime().nullable(),

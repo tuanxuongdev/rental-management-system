@@ -1,0 +1,97 @@
+/// Bulk inventory import / export jobs (Sprint-06).
+
+enum ImportJobType {
+  INVENTORY
+}
+
+enum ImportJobStatus {
+  QUEUED
+  PROCESSING
+  PARTIALLY_COMPLETED
+  COMPLETED
+  FAILED
+  CANCELLED
+}
+
+enum ImportJobRowStatus {
+  ACCEPTED
+  REJECTED
+  SKIPPED
+}
+
+enum ExportJobType {
+  INVENTORY
+}
+
+model ImportJob {
+  id             String          @id @default(uuid()) @db.Uuid
+  tenantId       String          @map("tenant_id") @db.Uuid
+  type           ImportJobType   @default(INVENTORY)
+  status         ImportJobStatus @default(QUEUED)
+  actorUserId    String          @map("actor_user_id") @db.Uuid
+  mapping        Json            @default("{}")
+  objectKey      String?         @map("object_key")
+  errorObjectKey String?         @map("error_object_key")
+  counts         Json            @default("{\"total\":0,\"accepted\":0,\"rejected\":0,\"skipped\":0,\"applied\":0}")
+  version        Int             @default(1)
+  createdAt      DateTime        @default(now()) @map("created_at")
+  updatedAt      DateTime        @updatedAt @map("updated_at")
+  deletedAt      DateTime?       @map("deleted_at")
+
+  tenant Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  rows   ImportJobRow[]
+
+  @@index([tenantId, status])
+  @@index([tenantId, createdAt])
+  @@map("import_jobs")
+}
+
+model ImportJobRow {
+  id        String             @id @default(uuid()) @db.Uuid
+  tenantId  String             @map("tenant_id") @db.Uuid
+  jobId     String             @map("job_id") @db.Uuid
+  rowNumber Int                @map("row_number")
+  status    ImportJobRowStatus
+  reason    String?
+  payload   Json               @default("{}")
+  createdAt DateTime           @default(now()) @map("created_at")
+  updatedAt DateTime           @updatedAt @map("updated_at")
+
+  job ImportJob @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  @@unique([jobId, rowNumber])
+  @@index([tenantId, jobId, status])
+  @@map("import_job_rows")
+}
+
+model ExportJob {
+  id          String          @id @default(uuid()) @db.Uuid
+  tenantId    String          @map("tenant_id") @db.Uuid
+  type        ExportJobType   @default(INVENTORY)
+  status      ImportJobStatus @default(QUEUED)
+  actorUserId String          @map("actor_user_id") @db.Uuid
+  objectKey   String?         @map("object_key")
+  counts      Json            @default("{\"total\":0}")
+  createdAt   DateTime        @default(now()) @map("created_at")
+  updatedAt   DateTime        @updatedAt @map("updated_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, status])
+  @@index([tenantId, createdAt])
+  @@map("export_jobs")
+}
+
+model ImportMappingPreset {
+  id        String   @id @default(uuid()) @db.Uuid
+  tenantId  String   @map("tenant_id") @db.Uuid
+  name      String
+  mapping   Json     @default("{}")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, name])
+  @@map("import_mapping_presets")
+}

@@ -1,18 +1,20 @@
-import {
-  ConflictException,
-  ForbiddenException,
-  Inject,
-  Injectable,
-  NotFoundException,
-} from '@nestjs/common';
+import { randomUUID } from 'node:crypto';
+
+import { Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { MembershipStatus, SeedRoleKey } from '@prisma/client';
 
-import { type CreateOrganizationRequest, type OrganizationResponse } from '@rpm/contracts';
+import {
+  SYSTEM_ROLE_KEYS,
+  type CreateOrganizationRequest,
+  type OrganizationResponse,
+} from '@rpm/contracts';
 
 import { slugifyOrganizationName } from '../../../infrastructure/crypto/crypto.services';
 import { TransactionService } from '../../../infrastructure/persistence/transaction.service';
 import { PrismaService } from '../../../infrastructure/prisma/prisma.module';
 import { AuditService } from '../../audit/audit.service';
+
+import { RbacSeedService } from './rbac-seed.service';
 
 @Injectable()
 export class OrganizationService {
@@ -20,6 +22,7 @@ export class OrganizationService {
     @Inject(PrismaService) private readonly prisma: PrismaService,
     @Inject(TransactionService) private readonly transactions: TransactionService,
     @Inject(AuditService) private readonly audit: AuditService,
+    @Inject(RbacSeedService) private readonly rbacSeed: RbacSeedService,
   ) {}
 
   async createOrganization(
@@ -27,16 +30,7 @@ export class OrganizationService {
     body: CreateOrganizationRequest,
     correlationId?: string,
   ): Promise<OrganizationResponse> {
-    const existingMembership = await this.prisma.tenantMembership.findFirst({
-      where: { userId, status: MembershipStatus.ACTIVE },
-    });
-
-    if (existingMembership !== null) {
-      throw new ConflictException({
-        message: 'User already belongs to an active Organization',
-        code: 'MEMBERSHIP_EXISTS',
-      });
-    }
+    const ownerRoleId = await this.rbacSeed.getSystemRoleId(SYSTEM_ROLE_KEYS.OWNER);
 
     const baseSlug = body.slug ?? slugifyOrganizationName(body.displayName);
     let slug = baseSlug;
@@ -67,13 +61,23 @@ export class OrganizationService {
         },
       });
 
-      await tx.tenantMembership.create({
+      const membership = await tx.tenantMembership.create({
         data: {
           tenantId: created.id,
           userId,
           membershipType: 'WORKFORCE',
           status: MembershipStatus.ACTIVE,
           seedRole: SeedRoleKey.OWNER,
+        },
+      });
+
+      await tx.membershipRole.create({
+        data: {
+          id: randomUUID(),
+          tenantId: created.id,
+          membershipId: membership.id,
+          roleId: ownerRoleId,
+          assignedByUserId: userId,
         },
       });
 
@@ -114,24 +118,6 @@ export class OrganizationService {
     }
 
     return this.toOrganizationResponse(tenant);
-  }
-
-  async assertCanInvite(organizationId: string, userId: string): Promise<void> {
-    const membership = await this.prisma.tenantMembership.findFirst({
-      where: {
-        tenantId: organizationId,
-        userId,
-        status: MembershipStatus.ACTIVE,
-        seedRole: { in: [SeedRoleKey.OWNER, SeedRoleKey.ADMIN] },
-      },
-    });
-
-    if (membership === null) {
-      throw new ForbiddenException({
-        message: 'Insufficient permissions to invite members',
-        code: 'FORBIDDEN',
-      });
-    }
   }
 
   private toOrganizationResponse(tenant: {

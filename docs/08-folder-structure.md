@@ -7,13 +7,14 @@ This document defines the proposed repository layout, ownership boundaries, depe
 The canonical architecture is:
 
 - A `pnpm` workspace monorepo.
-- React and TypeScript for the web application.
+- **Next.js App Router** (React + TypeScript) for the web application — see [`CODING_RULES.md`](../CODING_RULES.md) stack note. Early drafts of this file described a Vite SPA; **that layout is not implemented** and must not be reintroduced without an ADR.
 - NestJS for the HTTP API and background worker.
 - PostgreSQL through Prisma, Redis, and S3-compatible object storage.
 - A modular monolith first, with explicit boundaries that permit later extraction.
 
 The trees below are documentation of the intended structure. They do not imply that every directory must be created before it is needed.
 
+**Implemented Prisma migrations** live under `prisma/schema/migrations/` (immutable, forward-only). The historical `prisma/migrations/` path in some trees below is superseded by that location.
 ## 2. Repository Structure
 
 ```text
@@ -99,52 +100,33 @@ Cross-domain relations are declared on both sides and reviewed by both owners. `
 
 ## 3. Frontend Structure: `apps/web`
 
-Use a feature-oriented structure. Route-level features own orchestration and business-facing UI; generic visual primitives belong in `packages/ui`.
+Use a feature-oriented structure on **Next.js App Router**. Thin `src/app` route files compose domain UI from `src/features/<domain>`. Generic visual primitives belong in `packages/ui`. See [ADR-0005](./adr/0005-nextjs-app-router.md).
 
 ```text
 apps/web/
 ├── public/
 ├── src/
-│   ├── app/
-│   │   ├── App.tsx
-│   │   ├── router.tsx
-│   │   ├── providers/               # Query, auth, theme, i18n, error boundary
-│   │   ├── layouts/                 # Authenticated, public, and admin shells
-│   │   └── guards/                  # Route-level access and tenant guards
+│   ├── app/                         # Next.js App Router (thin routes only)
+│   │   ├── (public)/                # login, MFA, invites, password flows
+│   │   ├── (app)/app/               # authenticated staff shell routes
+│   │   │   ├── admin/               # users, roles, settings, imports
+│   │   │   ├── portfolio/           # properties, units, owners, agreements
+│   │   │   ├── operations/          # Operations Center
+│   │   │   └── layout.tsx
+│   │   ├── layout.tsx
+│   │   └── providers.tsx            # Query, auth, theme boundaries
 │   ├── features/
-│   │   ├── identity/
-│   │   ├── tenancy/
+│   │   ├── admin/
 │   │   ├── inventory/               # Properties, Units, optional Beds
-│   │   ├── parties/                 # People and CRM organizations
-│   │   ├── leasing/
-│   │   ├── billing/
-│   │   ├── payments/
-│   │   ├── utilities/
-│   │   ├── maintenance/
-│   │   ├── documents/
-│   │   ├── communications/
-│   │   ├── reporting/
-│   │   ├── audit/
-│   │   └── imports/
-│   ├── pages/                       # Thin route composition only
+│   │   ├── parties/                 # Property Owners / agreements
+│   │   ├── imports/                 # Import wizard + operations UI
+│   │   └── …                        # leasing/billing as those sprints land
 │   ├── components/                  # App-specific cross-feature components
-│   ├── api/
-│   │   ├── client.ts                # HTTP setup, auth headers, correlation IDs
-│   │   ├── query-client.ts
-│   │   └── generated/               # Generated API client; never hand-edited
-│   ├── hooks/                       # Truly cross-feature hooks
-│   ├── lib/                         # Framework adapters and narrow utilities
-│   ├── state/                       # Minimal cross-feature client state
-│   ├── styles/                      # Application-level global styles
-│   ├── test/                        # Browser test setup and app-wide mocks
-│   ├── types/                       # Web-only types; not transport contracts
-│   └── main.tsx
-├── e2e/
-│   ├── fixtures/
-│   ├── pages/                       # Page objects where they reduce duplication
-│   └── specs/
-├── index.html
-├── vite.config.ts
+│   ├── lib/                         # Transport adapters (`*-api.ts`); see CODING_RULES
+│   ├── state/                       # Minimal cross-feature client state (no tokens)
+│   ├── styles/
+│   └── types/                       # Web-only types; not transport contracts
+├── next.config.ts
 ├── tsconfig.json
 └── package.json
 ```
@@ -152,29 +134,24 @@ apps/web/
 Recommended internal feature shape:
 
 ```text
-features/leases/
-├── api/
-│   ├── lease.queries.ts
-│   └── lease.mutations.ts
+features/inventory/
 ├── components/
-├── hooks/
-├── pages/
-├── schemas/                         # Form/view schemas, not shared API contracts
-├── types/
+├── hooks/                           # TanStack Query hooks
 ├── utils/
-├── leases.routes.tsx
 └── index.ts                         # Deliberate public surface
 ```
 
+Optional later: colocate `features/<domain>/api/` when a feature outgrows shared `lib/*-api.ts` adapters (documented convention in `CODING_RULES.md`).
+
 ### Frontend boundaries
 
-1. `pages` and route files may compose multiple features but should contain little business logic.
+1. `app/` route files compose features and must contain little business logic.
 2. A feature may import shared UI, contracts, config, and app-level infrastructure. It must not reach into another feature's private directories.
 3. Cross-feature access goes through the target feature's `index.ts` public API or an application-level orchestration module.
-4. Server state belongs in the query/cache layer. Do not duplicate it into a global client store.
+4. Server state belongs in TanStack Query. Do not duplicate it into a global client store.
 5. Authorization checks in the browser improve UX only; the API remains authoritative.
 6. Components in `packages/ui` must not depend on application routes, domain terminology, API clients, or tenant state.
-7. Generated clients and transport contracts are not manually modified.
+7. Transport contracts live in `@rpm/contracts`; do not hand-edit generated OpenAPI clients if/when introduced.
 
 ## 4. API Structure: `apps/api`
 

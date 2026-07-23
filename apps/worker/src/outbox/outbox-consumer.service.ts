@@ -7,7 +7,14 @@ import {
 } from '@nestjs/common';
 import { OutboxEventStatus, Prisma } from '@prisma/client';
 
+import {
+  INVENTORY_IMPORT_COMMIT_EVENT,
+  processInventoryImportCommit,
+  type InventoryImportCommitPayload,
+} from '../handlers/inventory-import.handler';
 import { PrismaService } from '../infrastructure/prisma/prisma.module';
+
+import { validateOutboxTenantContext } from './tenant-context';
 
 const CONSUMER_NAME = 'rpm.worker.outbox' as const;
 const POLL_INTERVAL_MS = 2_000 as const;
@@ -47,6 +54,8 @@ export class OutboxConsumerService implements OnModuleInit, OnModuleDestroy {
         id: true,
         eventType: true,
         correlationId: true,
+        tenantId: true,
+        payload: true,
       },
     });
 
@@ -66,20 +75,49 @@ export class OutboxConsumerService implements OnModuleInit, OnModuleDestroy {
     id: string;
     eventType: string;
     correlationId: string | null;
+    tenantId: string | null;
+    payload: Prisma.JsonValue;
   }): Promise<boolean> {
+    const tenantCheck = validateOutboxTenantContext(event.tenantId, event.payload);
+    if (!tenantCheck.ok) {
+      this.logger.warn(
+        JSON.stringify({
+          level: 'warn',
+          message: 'outbox.event.tenant_context_rejected',
+          consumer: CONSUMER_NAME,
+          eventId: event.id,
+          eventType: event.eventType,
+          reason: tenantCheck.reason,
+          tenantId: event.tenantId,
+          correlationId: event.correlationId,
+        }),
+      );
+
+      await this.prisma.outboxEvent.updateMany({
+        where: { id: event.id, status: OutboxEventStatus.PENDING },
+        data: {
+          status: OutboxEventStatus.FAILED,
+          availableAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
+        },
+      });
+      return false;
+    }
+
+    const already = await this.prisma.processedMessage.findFirst({
+      where: { consumerName: CONSUMER_NAME, messageId: event.id },
+    });
+    if (already !== null) {
+      await this.prisma.outboxEvent.updateMany({
+        where: { id: event.id, status: OutboxEventStatus.PENDING },
+        data: { status: OutboxEventStatus.PUBLISHED, publishedAt: new Date() },
+      });
+      return false;
+    }
+
     try {
+      await this.dispatch(event.eventType, event.payload);
+
       return await this.prisma.$transaction(async (tx) => {
-        const current = await tx.outboxEvent.findFirst({
-          where: {
-            id: event.id,
-            status: OutboxEventStatus.PENDING,
-          },
-        });
-
-        if (current === null) {
-          return false;
-        }
-
         try {
           await tx.processedMessage.create({
             data: {
@@ -91,23 +129,16 @@ export class OutboxConsumerService implements OnModuleInit, OnModuleDestroy {
         } catch (error) {
           if (isPrismaUniqueViolation(error)) {
             await tx.outboxEvent.updateMany({
-              where: {
-                id: event.id,
-                status: OutboxEventStatus.PENDING,
-              },
-              data: {
-                status: OutboxEventStatus.PUBLISHED,
-                publishedAt: new Date(),
-              },
+              where: { id: event.id, status: OutboxEventStatus.PENDING },
+              data: { status: OutboxEventStatus.PUBLISHED, publishedAt: new Date() },
             });
             return false;
           }
-
           throw error;
         }
 
-        await tx.outboxEvent.update({
-          where: { id: event.id },
+        await tx.outboxEvent.updateMany({
+          where: { id: event.id, status: OutboxEventStatus.PENDING },
           data: {
             status: OutboxEventStatus.PUBLISHED,
             publishedAt: new Date(),
@@ -121,6 +152,7 @@ export class OutboxConsumerService implements OnModuleInit, OnModuleDestroy {
             consumer: CONSUMER_NAME,
             eventId: event.id,
             eventType: event.eventType,
+            tenantId: event.tenantId,
             correlationId: event.correlationId,
           }),
         );
@@ -137,7 +169,37 @@ export class OutboxConsumerService implements OnModuleInit, OnModuleDestroy {
           error: error instanceof Error ? error.message : 'unknown',
         }),
       );
+
+      await this.prisma.outboxEvent.updateMany({
+        where: { id: event.id, status: OutboxEventStatus.PENDING },
+        data: {
+          availableAt: new Date(Date.now() + 15_000),
+        },
+      });
       return false;
     }
+  }
+
+  private async dispatch(eventType: string, payload: Prisma.JsonValue): Promise<void> {
+    if (eventType === INVENTORY_IMPORT_COMMIT_EVENT) {
+      if (payload === null || typeof payload !== 'object' || Array.isArray(payload)) {
+        throw new Error('Invalid inventory.import.commit payload');
+      }
+      const record = payload as Record<string, unknown>;
+      const commitPayload: InventoryImportCommitPayload = {
+        tenantId: String(record.tenantId ?? record.organizationId ?? ''),
+        organizationId:
+          typeof record.organizationId === 'string' ? record.organizationId : undefined,
+        importJobId: String(record.importJobId ?? ''),
+        actorUserId: String(record.actorUserId ?? ''),
+      };
+      if (!commitPayload.tenantId || !commitPayload.importJobId) {
+        throw new Error('inventory.import.commit payload missing tenantId or importJobId');
+      }
+      await processInventoryImportCommit(this.prisma, commitPayload);
+      return;
+    }
+
+    // Unknown event types are acknowledged (no-op) so the outbox does not stall.
   }
 }

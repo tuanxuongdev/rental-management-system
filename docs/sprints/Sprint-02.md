@@ -4,7 +4,7 @@
 **Roadmap alignment:** [10-development-roadmap.md](../10-development-roadmap.md) Sprint 2 · Phase 1 exit **M1**  
 **Program references:** [project-roadmap.md](../project-roadmap.md) · [dependency-map.md](../dependency-map.md) · [03-database-design.md](../03-database-design.md)  
 **Duration:** 2 weeks  
-**Status:** Ready for planning  
+**Status:** Implemented / Reviewed — see docs/reviews/Sprint-02-Review.md  
 **Builds on:** [Sprint-01.md](./Sprint-01.md)
 
 ---

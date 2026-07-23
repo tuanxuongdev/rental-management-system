@@ -16,6 +16,7 @@ import {
   loginRequestSchema,
   logoutAllRequestSchema,
   mfaChallengeRequestSchema,
+  organizationSwitchRequestSchema,
   passwordForgotRequestSchema,
   passwordResetRequestSchema,
 } from '@rpm/contracts';
@@ -70,6 +71,21 @@ export class AuthController {
   @Post('refresh')
   async refresh(@Req() request: Request, @Res({ passthrough: true }) response: Response) {
     return this.authService.refresh(request, response);
+  }
+
+  @Post('organization-switch')
+  async switchOrganization(
+    @CurrentActor() actor: AuthActor,
+    @Req() request: RequestWithCorrelation,
+    @Body() body: unknown,
+  ) {
+    const parsed = organizationSwitchRequestSchema.parse(body);
+    return this.authService.switchOrganization(
+      actor.userId,
+      actor.sessionId,
+      parsed.organizationId,
+      request.correlationId,
+    );
   }
 
   @Post('logout')
