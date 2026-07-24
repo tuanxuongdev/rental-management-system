@@ -131,7 +131,7 @@ Rules: org isolation from JWT; Decimal money; SoD by `userId`; Idempotency-Key o
 | `apps/api/.../reconciliation.integration.spec.ts` | Domain gates always-on; full DB T12-01..11 expand after migrate deploy |
 | Existing payment unit paths | Period / unapplied / SoD wired into payments module |
 
-Quality gates (session): `pnpm lint` · `typecheck` · `unit` (79) · `build` — pass.
+Quality gates (session): `pnpm lint` · `typecheck` · `unit` · `build` — pass (post–Sprint-12 review fixes).
 
 ---
 

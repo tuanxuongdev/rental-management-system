@@ -36,13 +36,15 @@ export function FinanceExportsWorkspace(): React.JSX.Element {
         currency,
         format: 'CSV',
       });
-      const blob = new Blob([result.csv ?? JSON.stringify(result.rows, null, 2)], {
-        type: 'text/csv',
+      const content = result.csv ?? JSON.stringify(result.rows, null, 2);
+      const isCsv = typeof result.csv === 'string' && result.csv.length > 0;
+      const blob = new Blob([content], {
+        type: isCsv ? 'text/csv' : 'application/json',
       });
       const url = URL.createObjectURL(blob);
       const anchor = document.createElement('a');
       anchor.href = url;
-      anchor.download = `finance-${type}-${asOf}.csv`;
+      anchor.download = `finance-${type}-${asOf}.${isCsv ? 'csv' : 'json'}`;
       anchor.click();
       URL.revokeObjectURL(url);
     } catch (err) {

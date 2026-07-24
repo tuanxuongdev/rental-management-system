@@ -306,7 +306,16 @@ export class DepositDispositionService {
         });
       }
       if (line.status === 'EXECUTED') {
-        return { replayed: false as const, body: this.toResponse(line) };
+        const responseBody = this.toResponse(line);
+        await this.idempotency.complete(tx, {
+          tenantId: organizationId,
+          actorScope,
+          operation,
+          key: idempotencyKey,
+          responseStatus: 200,
+          responseBody,
+        });
+        return { replayed: true as const, body: responseBody };
       }
       if (line.status !== 'APPROVED') {
         throw new ConflictException({

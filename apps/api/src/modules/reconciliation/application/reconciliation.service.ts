@@ -6,6 +6,7 @@ import {
   Inject,
   Injectable,
   NotFoundException,
+  UnprocessableEntityException,
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 
@@ -446,7 +447,37 @@ export class ReconciliationService {
           break;
       }
 
-      if (nextStatus === 'MATCHED' && paymentTransactionId !== null) {
+      if (nextStatus === 'MATCHED') {
+        if (paymentTransactionId === null) {
+          throw new UnprocessableEntityException({
+            message: 'paymentTransactionId required for MATCH',
+            code: 'RECONCILIATION_PAYMENT_REQUIRED',
+          });
+        }
+        const payment = await tx.paymentTransaction.findFirst({
+          where: { id: paymentTransactionId, tenantId: organizationId },
+        });
+        if (payment === null) {
+          throw new NotFoundException({
+            message: 'Payment not found',
+            code: 'PAYMENT_NOT_FOUND',
+          });
+        }
+        if (payment.currency !== item.run.currency) {
+          throw new UnprocessableEntityException({
+            message: 'Payment currency does not match run currency',
+            code: 'CURRENCY_MISMATCH',
+          });
+        }
+        if (
+          item.externalAmount !== null &&
+          !amountsMatch(payment.amount, item.externalAmount, item.run.toleranceAmount)
+        ) {
+          throw new UnprocessableEntityException({
+            message: 'Payment amount does not match settlement line within tolerance',
+            code: 'AMOUNT_MISMATCH',
+          });
+        }
         await tx.paymentTransaction.updateMany({
           where: { id: paymentTransactionId, tenantId: organizationId },
           data: { reconciliationStatus: 'MATCHED' },
@@ -553,7 +584,16 @@ export class ReconciliationService {
         });
       }
       if (run.status === 'COMPLETED') {
-        return { replayed: false as const, body: this.toRunResponse(run) };
+        const responseBody = this.toRunResponse(run);
+        await this.idempotency.complete(tx, {
+          tenantId: organizationId,
+          actorScope,
+          operation,
+          key: idempotencyKey,
+          responseStatus: 200,
+          responseBody,
+        });
+        return { replayed: true as const, body: responseBody };
       }
 
       await this.recomputeRunTotals(tx, organizationId, run.id);
@@ -561,19 +601,39 @@ export class ReconciliationService {
         where: { id: run.id, tenantId: organizationId },
       });
 
+      const openItems = await tx.reconciliationItem.count({
+        where: {
+          tenantId: organizationId,
+          runId: run.id,
+          status: { in: ['UNMATCHED', 'DISPUTED', 'SUGGESTED'] },
+        },
+      });
+      const hasOpenExceptions = openItems > 0;
       const variance = roundMoney(refreshedTotals.varianceAmount);
-      const needsOverride = variance.abs().gt(roundMoney(refreshedTotals.toleranceAmount));
+      const needsOverride =
+        variance.abs().gt(roundMoney(refreshedTotals.toleranceAmount)) || hasOpenExceptions;
       if (needsOverride) {
         if (!hasApprove) {
           throw new ForbiddenException({
-            message: 'Approve permission required to force-complete over tolerance',
-            code: 'RECONCILIATION_APPROVE_REQUIRED',
+            message: hasOpenExceptions
+              ? 'Approve permission and override reason required while open unmatched/suggested items remain'
+              : 'Approve permission required to force-complete over tolerance',
+            code: hasOpenExceptions
+              ? 'RECONCILIATION_OPEN_ITEMS'
+              : 'RECONCILIATION_APPROVE_REQUIRED',
           });
         }
         assertActorsDistinct([
           { role: 'preparer', userId: run.preparedByUserId },
           { role: 'approver', userId: actorUserId },
         ]);
+        if (body.overrideReason === undefined || body.overrideReason.trim().length < 3) {
+          throw new UnprocessableEntityException({
+            message:
+              'overrideReason required to complete with open items or over-tolerance variance',
+            code: 'RECONCILIATION_OVERRIDE_REQUIRED',
+          });
+        }
       }
 
       assertVarianceWithinTolerance({
@@ -645,12 +705,12 @@ export class ReconciliationService {
     let unmatched = new Prisma.Decimal(0);
     for (const item of items) {
       const amt = item.externalAmount ?? new Prisma.Decimal(0);
-      if (item.status === 'MATCHED' || item.status === 'SUGGESTED') {
+      if (item.status === 'MATCHED' || item.status === 'EXCEPTION_ACCEPTED') {
         matched = matched.plus(amt);
       } else if (
         item.status === 'UNMATCHED' ||
         item.status === 'DISPUTED' ||
-        item.status === 'EXCEPTION_ACCEPTED'
+        item.status === 'SUGGESTED'
       ) {
         unmatched = unmatched.plus(amt);
       }

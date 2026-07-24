@@ -30,6 +30,7 @@ export function ReconciliationWorkspace(): React.JSX.Element {
   const [periodStart, setPeriodStart] = useState('2026-07-01');
   const [periodEnd, setPeriodEnd] = useState('2026-07-31');
   const [currency, setCurrency] = useState('USD');
+  const [controlTotal, setControlTotal] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [idemKey, setIdemKey] = useState(() => crypto.randomUUID());
 
@@ -51,7 +52,7 @@ export function ReconciliationWorkspace(): React.JSX.Element {
           periodStart,
           periodEnd,
           currency,
-          controlTotal: '0.0000',
+          controlTotal: controlTotal.trim() || undefined,
         },
       });
       setSelectedRunId(run.id);
@@ -99,8 +100,17 @@ export function ReconciliationWorkspace(): React.JSX.Element {
               maxLength={3}
             />
           </div>
+          <div>
+            <Label htmlFor="controlTotal">Control total (optional)</Label>
+            <Input
+              id="controlTotal"
+              value={controlTotal}
+              onChange={(e) => setControlTotal(e.target.value)}
+              placeholder="e.g. 1000.0000"
+            />
+          </div>
           <Button type="button" onClick={() => void onCreate()} disabled={createMutation.isPending}>
-            Create run
+            {createMutation.isPending ? 'Creating…' : 'Create run'}
           </Button>
         </div>
       ) : null}
@@ -152,24 +162,31 @@ function ReconciliationRunDetail({ runId }: { runId: string }): React.JSX.Elemen
   const resolveMutation = useResolveReconItem();
   const completeMutation = useCompleteReconRun(runId);
   const canPerform = canMutate(meQuery.data, FINANCE_PERMISSIONS.reconciliationPerform);
+  const canApprove = canMutate(meQuery.data, FINANCE_PERMISSIONS.reconciliationApprove);
   const [ingestJson, setIngestJson] = useState(
     '[{"externalReference":"REF-1","amount":"100.0000","currency":"USD","transactionDate":"2026-07-15"}]',
   );
   const [overrideReason, setOverrideReason] = useState('');
+  const [matchPaymentId, setMatchPaymentId] = useState('');
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [ingestKey, setIngestKey] = useState(() => crypto.randomUUID());
+  const [resolveKey, setResolveKey] = useState(() => crypto.randomUUID());
+  const [completeKey, setCompleteKey] = useState(() => crypto.randomUUID());
 
   const run = runQuery.data;
+  const busy = ingestMutation.isPending || resolveMutation.isPending || completeMutation.isPending;
 
   async function onIngest(): Promise<void> {
     setError(null);
     try {
       const lines = JSON.parse(ingestJson) as unknown;
       await ingestMutation.mutateAsync({
-        idempotencyKey: crypto.randomUUID(),
+        idempotencyKey: ingestKey,
         body: { lines: lines as never },
       });
       setMessage('Settlements ingested.');
+      setIngestKey(crypto.randomUUID());
     } catch (err) {
       setError(err instanceof AuthApiError ? err.message : 'Ingest failed.');
     }
@@ -183,9 +200,16 @@ function ReconciliationRunDetail({ runId }: { runId: string }): React.JSX.Elemen
     try {
       await resolveMutation.mutateAsync({
         itemId,
-        idempotencyKey: crypto.randomUUID(),
-        body: { resolution, reason: `Resolved as ${resolution}` },
+        idempotencyKey: resolveKey,
+        body: {
+          resolution,
+          reason: `Resolved as ${resolution}`,
+          ...(resolution === 'MATCH' && matchPaymentId.trim()
+            ? { paymentTransactionId: matchPaymentId.trim() }
+            : {}),
+        },
       });
+      setResolveKey(crypto.randomUUID());
     } catch (err) {
       setError(err instanceof AuthApiError ? err.message : 'Resolve failed.');
     }
@@ -195,10 +219,11 @@ function ReconciliationRunDetail({ runId }: { runId: string }): React.JSX.Elemen
     setError(null);
     try {
       await completeMutation.mutateAsync({
-        idempotencyKey: crypto.randomUUID(),
+        idempotencyKey: completeKey,
         body: { overrideReason: overrideReason || undefined },
       });
       setMessage('Run completed.');
+      setCompleteKey(crypto.randomUUID());
     } catch (err) {
       setError(err instanceof AuthApiError ? err.message : 'Complete failed.');
     }
@@ -228,19 +253,31 @@ function ReconciliationRunDetail({ runId }: { runId: string }): React.JSX.Elemen
             value={ingestJson}
             onChange={(e) => setIngestJson(e.target.value)}
           />
-          <Button type="button" onClick={() => void onIngest()}>
-            Ingest settlements
+          <Button type="button" disabled={busy} onClick={() => void onIngest()}>
+            {ingestMutation.isPending ? 'Ingesting…' : 'Ingest settlements'}
           </Button>
           <div>
-            <Label htmlFor="override">Override reason (if over tolerance)</Label>
+            <Label htmlFor="matchPaymentId">Payment ID for MATCH</Label>
+            <Input
+              id="matchPaymentId"
+              value={matchPaymentId}
+              onChange={(e) => setMatchPaymentId(e.target.value)}
+              placeholder="Required when matching a line"
+            />
+          </div>
+          <div>
+            <Label htmlFor="override">
+              Override reason (required over tolerance / open items
+              {canApprove ? '' : ' — needs finance.reconciliation.approve'})
+            </Label>
             <Input
               id="override"
               value={overrideReason}
               onChange={(e) => setOverrideReason(e.target.value)}
             />
           </div>
-          <Button type="button" onClick={() => void onComplete()}>
-            Complete run
+          <Button type="button" disabled={busy} onClick={() => void onComplete()}>
+            {completeMutation.isPending ? 'Completing…' : 'Complete run'}
           </Button>
         </>
       ) : null}
@@ -253,10 +290,18 @@ function ReconciliationRunDetail({ runId }: { runId: string }): React.JSX.Elemen
             </div>
             {canPerform && item.status !== 'MATCHED' && item.status !== 'EXCEPTION_ACCEPTED' ? (
               <div className="mt-2 flex gap-2">
-                <Button type="button" onClick={() => void onResolve(item.id, 'MATCH')}>
+                <Button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => void onResolve(item.id, 'MATCH')}
+                >
                   Match
                 </Button>
-                <Button type="button" onClick={() => void onResolve(item.id, 'EXCEPTION_ACCEPTED')}>
+                <Button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => void onResolve(item.id, 'EXCEPTION_ACCEPTED')}
+                >
                   Accept exception
                 </Button>
               </div>
@@ -264,7 +309,11 @@ function ReconciliationRunDetail({ runId }: { runId: string }): React.JSX.Elemen
           </li>
         ))}
       </ul>
-      {message ? <p className="text-muted-foreground">{message}</p> : null}
+      {message ? (
+        <p className="text-muted-foreground" role="status">
+          {message}
+        </p>
+      ) : null}
       {error ? (
         <p className="text-red-600" role="alert">
           {error}

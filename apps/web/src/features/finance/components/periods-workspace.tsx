@@ -15,7 +15,7 @@ export function PeriodsWorkspace(): React.JSX.Element {
   const periodsQuery = useAccountingPeriods();
   const closeMutation = useClosePeriod();
   const canClose = canMutate(meQuery.data, FINANCE_PERMISSIONS.periodClose);
-  const canView = hasPermission(meQuery.data, FINANCE_PERMISSIONS.reconciliationView) || canClose;
+  const canView = hasPermission(meQuery.data, FINANCE_PERMISSIONS.reconciliationView);
   const [periodKey, setPeriodKey] = useState(() => new Date().toISOString().slice(0, 7));
   const [error, setError] = useState<string | null>(null);
 

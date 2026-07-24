@@ -131,6 +131,21 @@ export class PeriodService {
           code: 'PERIOD_ALREADY_CLOSED',
         });
       }
+
+      const openExceptions = await tx.reconciliationItem.count({
+        where: {
+          tenantId: organizationId,
+          status: { in: ['UNMATCHED', 'DISPUTED', 'SUGGESTED'] },
+          run: { status: { notIn: ['CANCELLED', 'COMPLETED'] } },
+        },
+      });
+      if (openExceptions > 0) {
+        throw new UnprocessableEntityException({
+          message: 'Resolve unmatched/suggested reconciliation items before closing the period',
+          code: 'PERIOD_OPEN_RECON_ITEMS',
+        });
+      }
+
       const updated = await tx.accountingPeriod.update({
         where: { id: period.id },
         data: {

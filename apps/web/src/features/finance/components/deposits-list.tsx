@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useState } from 'react';
 
-import { Button, Input } from '@rpm/ui';
+import { Button, Input, Label } from '@rpm/ui';
 
 import { useMe } from '@/features/admin';
 import { AuthApiError } from '@/lib/auth-api';
@@ -17,6 +17,10 @@ import {
 } from '../hooks/use-payments';
 import { formatMoney } from '../utils/format-money';
 import { FINANCE_PERMISSIONS, canMutate, hasPermission } from '../utils/permissions';
+
+function isZeroMoney(value: string): boolean {
+  return value === '0' || value === '0.00' || value === '0.0000';
+}
 
 function DepositDispositionActions({
   depositId,
@@ -33,20 +37,20 @@ function DepositDispositionActions({
   const executeMutation = useExecuteDepositDisposition();
   const [amount, setAmount] = useState('');
   const [reason, setReason] = useState('Move-out refund');
-  const [pendingId, setPendingId] = useState<string | null>(null);
+  const [dispositionId, setDispositionId] = useState('');
   const [actors, setActors] = useState<string>('');
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [requestKey, setRequestKey] = useState(() => crypto.randomUUID());
+  const [approveKey, setApproveKey] = useState(() => crypto.randomUUID());
+  const [executeKey, setExecuteKey] = useState(() => crypto.randomUUID());
 
   const canRequest = canMutate(meQuery.data, FINANCE_PERMISSIONS.depositsDisposition);
   const canApprove = canMutate(meQuery.data, FINANCE_PERMISSIONS.depositsDispositionApprove);
   const canExecute = canMutate(meQuery.data, FINANCE_PERMISSIONS.depositsDispose);
+  const busy = createMutation.isPending || approveMutation.isPending || executeMutation.isPending;
 
-  if (
-    (!canRequest && !canApprove && !canExecute) ||
-    heldAmount === '0' ||
-    heldAmount === '0.0000'
-  ) {
+  if ((!canRequest && !canApprove && !canExecute) || isZeroMoney(heldAmount)) {
     return null;
   }
 
@@ -55,7 +59,7 @@ function DepositDispositionActions({
     setMessage(null);
     try {
       const created = await createMutation.mutateAsync({
-        idempotencyKey: crypto.randomUUID(),
+        idempotencyKey: requestKey,
         body: {
           effectiveAt: new Date().toISOString(),
           lines: [
@@ -71,50 +75,54 @@ function DepositDispositionActions({
       if (line === undefined) {
         throw new Error('Disposition line missing');
       }
-      setPendingId(line.id);
+      setDispositionId(line.id);
       setActors(`requester=${line.requestedByUserId ?? '—'}; status=${line.status}`);
-      setMessage(`Disposition requested (${line.status}). Approve with a different user.`);
+      setMessage(`Disposition requested (${line.status}). Copy ID for another user to approve.`);
+      setRequestKey(crypto.randomUUID());
     } catch (err) {
       setError(err instanceof AuthApiError ? err.message : 'Request failed.');
     }
   }
 
   async function onApprove(): Promise<void> {
-    if (pendingId === null) {
+    if (dispositionId.trim().length === 0) {
+      setError('Enter a disposition ID to approve.');
       return;
     }
     setError(null);
     try {
       const approved = await approveMutation.mutateAsync({
-        dispositionId: pendingId,
-        idempotencyKey: crypto.randomUUID(),
+        dispositionId: dispositionId.trim(),
+        idempotencyKey: approveKey,
         body: { decision: 'APPROVE', reason: 'Approved disposition' },
       });
       setActors(
         `requester=${approved.requestedByUserId ?? '—'}; approver=${approved.approvedByUserId ?? '—'}; status=${approved.status}`,
       );
-      setMessage('Disposition approved. Execute with a third (or different) actor.');
+      setMessage('Disposition approved. Execute with a different actor.');
+      setApproveKey(crypto.randomUUID());
     } catch (err) {
       setError(err instanceof AuthApiError ? err.message : 'Approve failed.');
     }
   }
 
   async function onExecute(): Promise<void> {
-    if (pendingId === null) {
+    if (dispositionId.trim().length === 0) {
+      setError('Enter a disposition ID to execute.');
       return;
     }
     setError(null);
     try {
       const executed = await executeMutation.mutateAsync({
-        dispositionId: pendingId,
-        idempotencyKey: crypto.randomUUID(),
+        dispositionId: dispositionId.trim(),
+        idempotencyKey: executeKey,
         body: { executedAt: new Date().toISOString() },
       });
       setActors(
         `requester=${executed.requestedByUserId ?? '—'}; approver=${executed.approvedByUserId ?? '—'}; executor=${executed.executedByUserId ?? '—'}`,
       );
       setMessage(`Disposition executed (${currency}).`);
-      setPendingId(null);
+      setExecuteKey(crypto.randomUUID());
     } catch (err) {
       setError(err instanceof AuthApiError ? err.message : 'Execute failed.');
     }
@@ -126,34 +134,56 @@ function DepositDispositionActions({
       {canRequest ? (
         <>
           <div className="flex flex-wrap gap-2">
-            <Input
-              placeholder="Amount"
-              value={amount}
-              onChange={(e) => setAmount(e.target.value)}
-            />
-            <Input
-              placeholder="Reason"
-              value={reason}
-              onChange={(e) => setReason(e.target.value)}
-            />
+            <div>
+              <Label htmlFor={`disp-amt-${depositId}`}>Amount</Label>
+              <Input
+                id={`disp-amt-${depositId}`}
+                value={amount}
+                onChange={(e) => setAmount(e.target.value)}
+                placeholder={heldAmount}
+              />
+            </div>
+            <div>
+              <Label htmlFor={`disp-reason-${depositId}`}>Reason</Label>
+              <Input
+                id={`disp-reason-${depositId}`}
+                value={reason}
+                onChange={(e) => setReason(e.target.value)}
+              />
+            </div>
           </div>
-          <Button type="button" onClick={() => void onRequest()}>
-            Request
+          <Button type="button" disabled={busy} onClick={() => void onRequest()}>
+            {createMutation.isPending ? 'Requesting…' : 'Request'}
           </Button>
         </>
       ) : null}
-      {canApprove && pendingId ? (
-        <Button type="button" onClick={() => void onApprove()}>
-          Approve
+      {(canApprove || canExecute) && (
+        <div>
+          <Label htmlFor={`disp-id-${depositId}`}>Disposition ID (for approve/execute)</Label>
+          <Input
+            id={`disp-id-${depositId}`}
+            value={dispositionId}
+            onChange={(e) => setDispositionId(e.target.value)}
+            placeholder="Paste disposition UUID from requester"
+          />
+        </div>
+      )}
+      {canApprove ? (
+        <Button type="button" disabled={busy} onClick={() => void onApprove()}>
+          {approveMutation.isPending ? 'Approving…' : 'Approve'}
         </Button>
       ) : null}
-      {canExecute && pendingId ? (
-        <Button type="button" onClick={() => void onExecute()}>
-          Execute
+      {canExecute ? (
+        <Button type="button" disabled={busy} onClick={() => void onExecute()}>
+          {executeMutation.isPending ? 'Executing…' : 'Execute'}
         </Button>
       ) : null}
       {actors ? <p className="text-muted-foreground text-xs">{actors}</p> : null}
-      {message ? <p className="text-muted-foreground">{message}</p> : null}
+      {message ? (
+        <p className="text-muted-foreground" role="status">
+          {message}
+        </p>
+      ) : null}
       {error ? (
         <p className="text-red-600" role="alert">
           {error}

@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useState } from 'react';
 
 import { Button, Input, Label } from '@rpm/ui';
@@ -101,7 +102,9 @@ export function ArrearsList(): React.JSX.Element {
                 {(agingQuery.data?.accounts ?? []).map((item) => (
                   <tr key={item.invoiceId} className="border-border border-b">
                     <td className="px-2 py-2">
-                      {item.invoiceNumber ?? item.invoiceId.slice(0, 8)}
+                      <Link href={`/app/finance/invoices/${item.invoiceId}`} className="underline">
+                        {item.invoiceNumber ?? item.invoiceId.slice(0, 8)}
+                      </Link>
                     </td>
                     <td className="px-2 py-2">{item.dueDate ?? '—'}</td>
                     <td className="px-2 py-2">{item.bucket}</td>

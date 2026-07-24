@@ -45,10 +45,14 @@ export function PaymentDetail({ paymentId }: PaymentDetailProps): React.JSX.Elem
   const [allocateIdempotencyKey, setAllocateIdempotencyKey] = useState(() => crypto.randomUUID());
   const [refundAmount, setRefundAmount] = useState('');
   const [refundReason, setRefundReason] = useState('');
-  const [refundId, setRefundId] = useState<string | null>(null);
+  const [refundId, setRefundId] = useState('');
   const [reverseReason, setReverseReason] = useState('');
   const [actionMessage, setActionMessage] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [refundRequestKey, setRefundRequestKey] = useState(() => crypto.randomUUID());
+  const [refundApproveKey, setRefundApproveKey] = useState(() => crypto.randomUUID());
+  const [refundExecuteKey, setRefundExecuteKey] = useState(() => crypto.randomUUID());
+  const [reverseKey, setReverseKey] = useState(() => crypto.randomUUID());
 
   const receiptId = paymentQuery.data?.receiptId ?? null;
   const receiptQuery = useReceipt(receiptId ?? '');
@@ -230,133 +234,173 @@ export function PaymentDetail({ paymentId }: PaymentDetailProps): React.JSX.Elem
         </form>
       ) : null}
 
-      {canRefund && payment.status === 'SETTLED' ? (
+      {(canRefund || canApproveRefund || canExecuteRefund) && payment.status === 'SETTLED' ? (
         <div className="max-w-md space-y-3">
-          <h2 className="text-sm font-semibold">Refund request</h2>
-          <Input
-            placeholder="Amount"
-            value={refundAmount}
-            onChange={(e) => setRefundAmount(e.target.value)}
-          />
-          <Input
-            placeholder="Reason"
-            value={refundReason}
-            onChange={(e) => setRefundReason(e.target.value)}
-          />
-          <Button
-            type="button"
-            disabled={refundMutation.isPending}
-            onClick={() => {
-              setActionError(null);
-              void refundMutation
-                .mutateAsync({
-                  body: {
-                    paymentTransactionId: payment.id,
-                    amount: refundAmount || payment.amount,
-                    reason: refundReason || 'Staff refund request',
-                  },
-                })
-                .then((refund) => {
-                  setRefundId(refund.id);
-                  setActionMessage(
-                    `Refund ${refund.id.slice(0, 8)} ${refund.status}. Approve/execute as other users.`,
-                  );
-                })
-                .catch((err) => {
-                  setActionError(
-                    err instanceof AuthApiError ? err.message : 'Refund request failed.',
-                  );
-                });
-            }}
-          >
-            Request refund
-          </Button>
-          {refundId ? (
-            <div className="flex flex-wrap gap-2">
-              <p className="text-muted-foreground w-full text-xs">
-                Refund {refundId.slice(0, 8)} — SoD: approver and executor must be different users
-                from the requester.
-              </p>
-              {canApproveRefund ? (
-                <Button
-                  type="button"
-                  disabled={approveRefundMutation.isPending}
-                  onClick={() => {
-                    setActionError(null);
-                    void approveRefundMutation
-                      .mutateAsync({
-                        refundId,
-                        body: { decision: 'APPROVE', reason: 'Owner/Admin approve refund' },
-                      })
-                      .then(() => setActionMessage('Refund approved.'))
-                      .catch((err) => {
-                        setActionError(
-                          err instanceof AuthApiError
-                            ? err.message
-                            : 'Refund approve failed (SoD or status).',
-                        );
-                      });
-                  }}
-                >
-                  Approve refund
-                </Button>
-              ) : null}
-              {canExecuteRefund ? (
-                <Button
-                  type="button"
-                  disabled={executeRefundMutation.isPending}
-                  onClick={() => {
-                    setActionError(null);
-                    void executeRefundMutation
-                      .mutateAsync({ refundId, body: {} })
-                      .then(() => {
-                        setActionMessage('Refund executed.');
-                        void paymentQuery.refetch();
-                      })
-                      .catch((err) => {
-                        setActionError(
-                          err instanceof AuthApiError
-                            ? err.message
-                            : 'Refund execute failed (SoD or status).',
-                        );
-                      });
-                  }}
-                >
-                  Execute refund
-                </Button>
-              ) : null}
-            </div>
+          <h2 className="text-sm font-semibold">Refunds (SoD)</h2>
+          {canRefund ? (
+            <>
+              <div className="space-y-1">
+                <Label htmlFor="refundAmount">Amount</Label>
+                <Input
+                  id="refundAmount"
+                  value={refundAmount}
+                  onChange={(e) => setRefundAmount(e.target.value)}
+                  placeholder={payment.amount}
+                />
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="refundReason">Reason</Label>
+                <Input
+                  id="refundReason"
+                  value={refundReason}
+                  onChange={(e) => setRefundReason(e.target.value)}
+                />
+              </div>
+              <Button
+                type="button"
+                disabled={refundMutation.isPending}
+                onClick={() => {
+                  setActionError(null);
+                  void refundMutation
+                    .mutateAsync({
+                      idempotencyKey: refundRequestKey,
+                      body: {
+                        paymentTransactionId: payment.id,
+                        amount: refundAmount || payment.amount,
+                        reason: refundReason || 'Staff refund request',
+                      },
+                    })
+                    .then((refund) => {
+                      setRefundId(refund.id);
+                      setRefundRequestKey(crypto.randomUUID());
+                      setActionMessage(
+                        `Refund ${refund.id} ${refund.status}. Share ID with approver/executor.`,
+                      );
+                    })
+                    .catch((err) => {
+                      setActionError(
+                        err instanceof AuthApiError ? err.message : 'Refund request failed.',
+                      );
+                    });
+                }}
+              >
+                {refundMutation.isPending ? 'Requesting…' : 'Request refund'}
+              </Button>
+            </>
           ) : null}
+          {(canApproveRefund || canExecuteRefund) && (
+            <div className="space-y-1">
+              <Label htmlFor="refundId">Refund ID</Label>
+              <Input
+                id="refundId"
+                value={refundId}
+                onChange={(e) => setRefundId(e.target.value)}
+                placeholder="Paste refund UUID"
+              />
+            </div>
+          )}
+          <div className="flex flex-wrap gap-2">
+            {canApproveRefund ? (
+              <Button
+                type="button"
+                disabled={approveRefundMutation.isPending || refundId.trim().length === 0}
+                onClick={() => {
+                  setActionError(null);
+                  void approveRefundMutation
+                    .mutateAsync({
+                      refundId: refundId.trim(),
+                      idempotencyKey: refundApproveKey,
+                      body: { decision: 'APPROVE', reason: 'Owner/Admin approve refund' },
+                    })
+                    .then(() => {
+                      setRefundApproveKey(crypto.randomUUID());
+                      setActionMessage('Refund approved.');
+                    })
+                    .catch((err) => {
+                      setActionError(
+                        err instanceof AuthApiError
+                          ? err.message
+                          : 'Refund approve failed (SoD or status).',
+                      );
+                    });
+                }}
+              >
+                {approveRefundMutation.isPending ? 'Approving…' : 'Approve refund'}
+              </Button>
+            ) : null}
+            {canExecuteRefund ? (
+              <Button
+                type="button"
+                disabled={executeRefundMutation.isPending || refundId.trim().length === 0}
+                onClick={() => {
+                  setActionError(null);
+                  void executeRefundMutation
+                    .mutateAsync({
+                      refundId: refundId.trim(),
+                      idempotencyKey: refundExecuteKey,
+                      body: {},
+                    })
+                    .then(() => {
+                      setRefundExecuteKey(crypto.randomUUID());
+                      setActionMessage('Refund executed.');
+                      void paymentQuery.refetch();
+                    })
+                    .catch((err) => {
+                      setActionError(
+                        err instanceof AuthApiError
+                          ? err.message
+                          : 'Refund execute failed (SoD or status).',
+                      );
+                    });
+                }}
+              >
+                {executeRefundMutation.isPending ? 'Executing…' : 'Execute refund'}
+              </Button>
+            ) : null}
+          </div>
         </div>
       ) : null}
 
       {canReverse && payment.status === 'SETTLED' ? (
         <div className="max-w-md space-y-3">
           <h2 className="text-sm font-semibold">Reverse payment</h2>
-          <Input
-            placeholder="Reason (required)"
-            value={reverseReason}
-            onChange={(e) => setReverseReason(e.target.value)}
-          />
+          <div className="space-y-1">
+            <Label htmlFor="reverseReason">Reason (required)</Label>
+            <Input
+              id="reverseReason"
+              value={reverseReason}
+              onChange={(e) => setReverseReason(e.target.value)}
+            />
+          </div>
           <Button
             type="button"
             disabled={reverseMutation.isPending || reverseReason.trim().length < 3}
             onClick={() => {
               setActionError(null);
               void reverseMutation
-                .mutateAsync({ body: { reason: reverseReason.trim() } })
-                .then(() => setActionMessage('Payment reversed.'))
+                .mutateAsync({
+                  idempotencyKey: reverseKey,
+                  body: { reason: reverseReason.trim() },
+                })
+                .then(() => {
+                  setReverseKey(crypto.randomUUID());
+                  setActionMessage('Payment reversed.');
+                })
                 .catch((err) => {
                   setActionError(err instanceof AuthApiError ? err.message : 'Reverse failed.');
                 });
             }}
           >
-            Reverse payment
+            {reverseMutation.isPending ? 'Reversing…' : 'Reverse payment'}
           </Button>
         </div>
       ) : null}
 
-      {actionMessage ? <p className="text-muted-foreground text-sm">{actionMessage}</p> : null}
+      {actionMessage ? (
+        <p className="text-muted-foreground text-sm" role="status">
+          {actionMessage}
+        </p>
+      ) : null}
       {actionError ? (
         <p className="text-sm text-red-600" role="alert">
           {actionError}

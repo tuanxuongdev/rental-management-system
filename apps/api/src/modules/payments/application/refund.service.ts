@@ -267,6 +267,8 @@ export class RefundService {
         return { replayed: true as const, body: begin.body as RefundResponse };
       }
 
+      await tx.$queryRaw`SELECT id FROM refunds WHERE id = ${refundId}::uuid AND tenant_id = ${organizationId}::uuid FOR UPDATE`;
+
       const refund = await tx.refund.findFirst({
         where: { id: refundId, tenantId: organizationId },
       });
@@ -274,7 +276,16 @@ export class RefundService {
         throw new NotFoundException({ message: 'Refund not found', code: 'REFUND_NOT_FOUND' });
       }
       if (refund.status === 'EXECUTED') {
-        return { replayed: false as const, body: this.toResponse(refund) };
+        const responseBody = this.toResponse(refund);
+        await this.idempotency.complete(tx, {
+          tenantId: organizationId,
+          actorScope,
+          operation,
+          key: idempotencyKey,
+          responseStatus: 200,
+          responseBody,
+        });
+        return { replayed: true as const, body: responseBody };
       }
       if (refund.status !== 'APPROVED') {
         throw new ConflictException({
@@ -291,7 +302,7 @@ export class RefundService {
       await tx.$queryRaw`SELECT id FROM payment_transactions WHERE id = ${refund.paymentTransactionId}::uuid AND tenant_id = ${organizationId}::uuid FOR UPDATE`;
       const payment = await tx.paymentTransaction.findFirst({
         where: { id: refund.paymentTransactionId, tenantId: organizationId },
-        include: { allocations: { where: { reversedAt: null } } },
+        include: { allocations: { where: { reversedAt: null }, orderBy: { createdAt: 'asc' } } },
       });
       if (payment === null || payment.status !== 'SETTLED') {
         throw new ConflictException({
@@ -335,6 +346,7 @@ export class RefundService {
           if (take.lte(0)) {
             continue;
           }
+          await tx.$queryRaw`SELECT id FROM invoices WHERE id = ${allocation.invoiceId}::uuid AND tenant_id = ${organizationId}::uuid FOR UPDATE`;
           const invoice = await tx.invoice.findFirst({
             where: { id: allocation.invoiceId, tenantId: organizationId },
           });
@@ -346,6 +358,33 @@ export class RefundService {
                 balanceAmount: newBalance,
                 status: newBalance.gte(invoice.totalAmount) ? 'POSTED' : 'PARTIALLY_PAID',
                 version: { increment: 1 },
+              },
+            });
+          }
+          // Fully reverse allocation rows consumed by refund so later payment reverse does not double-restore.
+          if (take.eq(allocation.amount)) {
+            await tx.paymentAllocation.update({
+              where: { id: allocation.id },
+              data: { reversedAt: executedAt },
+            });
+          } else {
+            await tx.paymentAllocation.update({
+              where: { id: allocation.id },
+              data: {
+                amount: roundMoney(allocation.amount.minus(take)),
+              },
+            });
+            await tx.paymentAllocation.create({
+              data: {
+                id: randomUUID(),
+                tenantId: organizationId,
+                paymentTransactionId: payment.id,
+                invoiceId: allocation.invoiceId,
+                amount: take,
+                currency: allocation.currency,
+                effectiveAt: allocation.effectiveAt,
+                reversedAt: executedAt,
+                reversalOfId: allocation.id,
               },
             });
           }

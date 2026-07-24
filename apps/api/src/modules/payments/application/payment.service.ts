@@ -546,6 +546,8 @@ export class PaymentService {
       return this.toResponse(existing, true);
     }
 
+    await this.periods.assertPeriodOpen(input.organizationId, input.receivedAt, tx);
+
     const paymentId = randomUUID();
     const amount = roundMoney(input.amount);
     const allocations =
