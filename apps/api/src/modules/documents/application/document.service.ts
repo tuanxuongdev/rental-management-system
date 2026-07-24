@@ -30,6 +30,7 @@ import {
   type DownloadUrlResponse,
   normalizePaginationLimit,
   PAGINATION_DEFAULT_LIMIT,
+  PERMISSION_KEYS,
   type UploadIntentRequest,
   type UploadIntentResponse,
 } from '@rpm/contracts';
@@ -178,6 +179,23 @@ export class DocumentService {
     if (body.propertyId !== undefined) {
       await this.authorization.assertPropertyAccess(membershipId, organizationId, body.propertyId);
     }
+    if (body.leaseId !== undefined) {
+      await this.authorization.assertPermission(
+        membershipId,
+        organizationId,
+        PERMISSION_KEYS.LEASES_UPDATE,
+      );
+      const lease = await this.prisma.lease.findFirst({
+        where: { id: body.leaseId, tenantId: organizationId, deletedAt: null },
+      });
+      if (lease === null) {
+        throw new NotFoundException({
+          message: 'Lease not found',
+          code: 'RESOURCE_NOT_FOUND',
+        });
+      }
+      await this.authorization.assertPropertyAccess(membershipId, organizationId, lease.propertyId);
+    }
 
     const documentId = randomUUID();
     const versionId = randomUUID();
@@ -233,7 +251,9 @@ export class DocumentService {
               scanStatus: 'UPLOADING',
             },
           },
-          ...(body.partyId !== undefined || body.propertyId !== undefined
+          ...(body.partyId !== undefined ||
+          body.propertyId !== undefined ||
+          body.leaseId !== undefined
             ? {
                 links: {
                   create: {
@@ -241,6 +261,7 @@ export class DocumentService {
                     linkType: body.linkType ?? 'ATTACHMENT',
                     partyId: body.partyId ?? null,
                     propertyId: body.propertyId ?? null,
+                    leaseId: body.leaseId ?? null,
                   },
                 },
               }
@@ -575,10 +596,25 @@ export class DocumentService {
       await this.authorization.assertPropertyAccess(membershipId, organizationId, body.propertyId);
     }
     if (body.leaseId !== undefined) {
-      throw new UnprocessableEntityException({
-        message: 'Lease links are not available until Sprint-08',
-        code: 'DOCUMENT_LINK_INVALID',
+      await this.authorization.assertPermission(
+        membershipId,
+        organizationId,
+        PERMISSION_KEYS.LEASES_UPDATE,
+      );
+      const lease = await this.prisma.lease.findFirst({
+        where: {
+          id: body.leaseId,
+          tenantId: organizationId,
+          deletedAt: null,
+        },
       });
+      if (lease === null) {
+        throw new NotFoundException({
+          message: 'Lease not found',
+          code: 'RESOURCE_NOT_FOUND',
+        });
+      }
+      await this.authorization.assertPropertyAccess(membershipId, organizationId, lease.propertyId);
     }
 
     try {
@@ -589,7 +625,7 @@ export class DocumentService {
           linkType: body.linkType,
           partyId: body.partyId ?? null,
           propertyId: body.propertyId ?? null,
-          leaseId: null,
+          leaseId: body.leaseId ?? null,
         },
       });
       if (existing !== null) {
@@ -606,7 +642,7 @@ export class DocumentService {
           linkType: body.linkType,
           partyId: body.partyId ?? null,
           propertyId: body.propertyId ?? null,
-          leaseId: null,
+          leaseId: body.leaseId ?? null,
         },
       });
 
@@ -622,12 +658,13 @@ export class DocumentService {
           documentId,
           linkType: body.linkType,
           partyId: body.partyId ?? null,
+          leaseId: body.leaseId ?? null,
         },
       });
 
       return this.toLinkResponse(link);
     } catch (error) {
-      if (error instanceof ConflictException) {
+      if (error instanceof ConflictException || error instanceof NotFoundException) {
         throw error;
       }
       throw new ConflictException({
@@ -716,6 +753,14 @@ export class DocumentService {
       OR: [
         { links: { some: { propertyId: { in: propertyIds } } } },
         ...(partyFilter.length > 0 ? [{ links: { some: { partyId: { in: partyFilter } } } }] : []),
+        {
+          links: {
+            some: {
+              leaseId: { not: null },
+              lease: { propertyId: { in: propertyIds }, deletedAt: null },
+            },
+          },
+        },
       ],
     };
   }
@@ -739,6 +784,21 @@ export class DocumentService {
     );
     if (propertyHit) {
       return;
+    }
+
+    const leaseIds = links.map((link) => link.leaseId).filter((id): id is string => id !== null);
+    if (leaseIds.length > 0) {
+      const leaseHit = await this.prisma.lease.count({
+        where: {
+          tenantId: organizationId,
+          id: { in: leaseIds },
+          propertyId: { in: accessible },
+          deletedAt: null,
+        },
+      });
+      if (leaseHit > 0) {
+        return;
+      }
     }
 
     const partyIds = links.map((link) => link.partyId).filter((id): id is string => id !== null);

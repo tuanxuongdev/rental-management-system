@@ -166,7 +166,7 @@ export type ExportJobResponse = z.infer<typeof exportJobResponseSchema>;
 export const operationsJobItemSchema = z.object({
   id: z.string().uuid(),
   type: z.string().min(1),
-  kind: z.enum(['IMPORT', 'EXPORT']),
+  kind: z.enum(['IMPORT', 'EXPORT', 'BILLING_RUN']),
   status: importJobStatusSchema,
   createdAt: z.string().datetime(),
   updatedAt: z.string().datetime(),

@@ -5,7 +5,7 @@
 **Program references:** [project-roadmap.md](../project-roadmap.md) · [dependency-map.md](../dependency-map.md) · [03-database-design.md](../03-database-design.md) · [04-api-specification.md](../04-api-specification.md) · [01-business-requirements.md](../01-business-requirements.md)  
 **UI references:** [ui/leasing/move-in.md](../ui/leasing/move-in.md) · [ui/leasing/move-out-checkout.md](../ui/leasing/move-out-checkout.md) · [ui/leasing/lease-renew-transfer.md](../ui/leasing/lease-renew-transfer.md) · [ui/leasing/lease-detail.md](../ui/leasing/lease-detail.md) · [ui/leasing/leases-list.md](../ui/leasing/leases-list.md) · [ui/cross-cutting-patterns.md](../ui/cross-cutting-patterns.md)  
 **Duration:** 2 weeks  
-**Status:** Ready for planning  
+**Status:** Implemented (engineering) — staging/M4 pilot sign-off remaining  
 **Builds on:** [Sprint-08.md](./Sprint-08.md) · [Sprint-07.md](./Sprint-07.md) (documents)
 
 ---
@@ -106,8 +106,8 @@ Keep Sprint-08 EXCLUDE invariants during renew/transfer.
 | `PATCH` | `.../leases/{id}/move-out` | Update checklist | `leases.move_out` |
 | `POST` | `.../leases/{id}/move-out/complete` | Complete checkout | `leases.move_out` |
 | `POST` | `.../leases/{id}/terminate` | Terminate (`Idempotency-Key`) | `leases.terminate` |
-| `GET` | `.../leases/pending-actions` | Expiry/move queues | `leases.read` |
-| `GET` | `.../leases/{id}/occupancy-events` | Timeline | `leases.read` |
+| `GET` | `.../leases/pending-actions` | Expiry/move queues | `leases.list` |
+| `GET` | `.../leases/{id}/occupancy-events` | Timeline | `leases.view` |
 
 **Rules:** High-risk terminate/move-out complete use confirmation payloads; property scope; idempotency; 412 on stale versions; occupancy updates transactional with lease status.
 

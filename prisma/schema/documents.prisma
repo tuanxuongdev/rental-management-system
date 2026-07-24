@@ -80,9 +80,11 @@ model DocumentLink {
   document Document  @relation(fields: [documentId], references: [id], onDelete: Cascade)
   party    Party?    @relation(fields: [partyId], references: [id], onDelete: Cascade)
   property Property? @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  lease    Lease?    @relation(fields: [leaseId], references: [id], onDelete: Cascade)
 
   @@unique([documentId, linkType, partyId, propertyId, leaseId])
   @@index([tenantId, partyId])
   @@index([tenantId, propertyId])
+  @@index([tenantId, leaseId])
   @@map("document_links")
 }

@@ -60,6 +60,7 @@ export const uploadIntentRequestSchema = z
     /** Optional party link at upload time (resident). */
     partyId: z.string().uuid().optional(),
     propertyId: z.string().uuid().optional(),
+    leaseId: z.string().uuid().optional(),
     linkType: z.string().min(1).max(64).optional(),
     /**
      * Test / local helper: when provided, bytes are written during upload-intent
@@ -67,9 +68,14 @@ export const uploadIntentRequestSchema = z
      */
     contentBase64: z.string().min(1).max(35_000_000).optional(),
   })
-  .refine((value) => !(value.partyId !== undefined && value.propertyId !== undefined), {
-    message: 'Provide at most one of partyId or propertyId on upload intent',
-  });
+  .refine(
+    (value) =>
+      [value.partyId, value.propertyId, value.leaseId].filter((item) => item !== undefined)
+        .length <= 1,
+    {
+      message: 'Provide at most one of partyId, propertyId, or leaseId on upload intent',
+    },
+  );
 export type UploadIntentRequest = z.infer<typeof uploadIntentRequestSchema>;
 
 export const documentVersionResponseSchema = z.object({

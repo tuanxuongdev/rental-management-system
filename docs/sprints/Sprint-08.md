@@ -5,7 +5,7 @@
 **Program references:** [project-roadmap.md](../project-roadmap.md) · [dependency-map.md](../dependency-map.md) · [03-database-design.md](../03-database-design.md) · [04-api-specification.md](../04-api-specification.md) · [01-business-requirements.md](../01-business-requirements.md)  
 **UI references:** [ui/leasing/leases-list.md](../ui/leasing/leases-list.md) · [ui/leasing/lease-detail.md](../ui/leasing/lease-detail.md) · [ui/leasing/lease-create-wizard.md](../ui/leasing/lease-create-wizard.md) · [ui/leasing/lease-activate.md](../ui/leasing/lease-activate.md) · [ui/cross-cutting-patterns.md](../ui/cross-cutting-patterns.md)  
 **Duration:** 2 weeks  
-**Status:** Ready for planning  
+**Status:** Implemented — see [docs/reviews/Sprint-08-Implementation.md](../reviews/Sprint-08-Implementation.md)  
 **Builds on:** [Sprint-05.md](./Sprint-05.md) · [Sprint-06.md](./Sprint-06.md) · [Sprint-07.md](./Sprint-07.md)
 
 ---
@@ -98,12 +98,12 @@ Subset of API §13 Leases:
 
 | Method | Path | Description | AuthZ |
 |---|---|---|---|
-| `GET/POST` | `.../leases` | List/create draft | `leases.read/create` |
-| `GET/PATCH` | `.../leases/{id}` | Detail/update draft | `leases.read/update` |
+| `GET/POST` | `.../leases` | List/create draft | `leases.list` / `leases.create` |
+| `GET/PATCH` | `.../leases/{id}` | Detail/update draft | `leases.view` / `leases.update` |
 | `POST` | `.../leases/{id}/allocations` | Set allocations | `leases.update` |
-| `POST` | `.../leases/{id}/review` | Validation snapshot | `leases.read` |
+| `POST` | `.../leases/{id}/review` | Validation snapshot | `leases.view` |
 | `POST` | `.../leases/{id}/activate` | Activate (`Idempotency-Key`, `If-Match`) | `leases.activate` |
-| `GET` | `.../leases/{id}/history` | Status history | `leases.read` |
+| `GET` | `.../leases/{id}/history` | Status history | `leases.view` |
 | Documents | attach to lease | `documents.*` + `leases.update` |
 
 **Errors:** Overbooking, capacity exceeded, currency mismatch, do-not-rent block, stale version (412), lifecycle conflict.
@@ -127,7 +127,7 @@ High-risk activation confirmation per cross-cutting patterns (consequences, reas
 
 | Permission | Use |
 |---|---|
-| `leases.read/create/update` | Draft management |
+| `leases.list` / `leases.view` / `leases.create` / `leases.update` | Draft management |
 | `leases.activate` | Activation (may be narrower than update) |
 | `leases.override_do_not_rent` | Optional override |
 | Property scope | Enforce on create/activate |

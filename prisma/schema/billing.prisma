@@ -1,0 +1,551 @@
+/// Sprint-10 billing foundation: schedules, invoices, ledger, deposits, meters (MVP).
+
+enum BillingScheduleStatus {
+  ACTIVE
+  PAUSED
+  ENDED
+}
+
+enum ChargeRuleType {
+  RENT
+  SERVICE
+  FEE
+  UTILITY
+  TAX
+  DISCOUNT
+  DEPOSIT
+}
+
+enum InvoiceStatus {
+  DRAFT
+  POSTED
+  PARTIALLY_PAID
+  PAID
+  VOID
+}
+
+enum CreditNoteStatus {
+  DRAFT
+  POSTED
+  VOID
+}
+
+enum LedgerAccountType {
+  RECEIVABLE
+  LIABILITY
+  REVENUE
+  CONTROL
+}
+
+enum LedgerEntrySide {
+  DEBIT
+  CREDIT
+}
+
+enum SecurityDepositStatus {
+  DUE
+  HELD
+  PARTIALLY_DISPOSED
+  CLOSED
+}
+
+enum BillingRunStatus {
+  DRAFT
+  PREVIEWED
+  APPROVED
+  COMMITTING
+  COMPLETED
+  FAILED
+  PARTIAL
+}
+
+enum MeterType {
+  ELECTRICITY
+  WATER
+}
+
+enum MeterStatus {
+  ACTIVE
+  RETIRED
+}
+
+enum MeterReadingQuality {
+  ACTUAL
+  ESTIMATE
+  CORRECTED
+}
+
+enum UtilityAllocationRunStatus {
+  DRAFT
+  PREVIEWED
+  COMMITTED
+  FAILED
+}
+
+enum LateFeeMethod {
+  FLAT
+  PERCENT
+}
+
+model ServiceCatalogItem {
+  id              String   @id @default(uuid()) @db.Uuid
+  tenantId        String   @map("tenant_id") @db.Uuid
+  code            String
+  name            String
+  calculationType String   @default("FIXED") @map("calculation_type")
+  taxCategory     String?  @map("tax_category")
+  defaultCurrency String   @map("default_currency") @db.Char(3)
+  defaultRate     Decimal? @map("default_rate") @db.Decimal(19, 4)
+  active          Boolean  @default(true)
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  tenant        Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  leaseServices LeaseService[]
+
+  @@unique([tenantId, code])
+  @@index([tenantId, active])
+  @@map("service_catalog_items")
+}
+
+model LeaseService {
+  id              String    @id @default(uuid()) @db.Uuid
+  tenantId        String    @map("tenant_id") @db.Uuid
+  leaseId         String    @map("lease_id") @db.Uuid
+  serviceItemId   String    @map("service_item_id") @db.Uuid
+  quantity        Decimal   @default(1) @db.Decimal(19, 4)
+  rateOverride    Decimal?  @map("rate_override") @db.Decimal(19, 4)
+  currency        String    @db.Char(3)
+  cadence         RentCadence @default(MONTHLY)
+  effectiveFrom   DateTime  @map("effective_from") @db.Date
+  effectiveTo     DateTime? @map("effective_to") @db.Date
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  lease       Lease              @relation(fields: [leaseId], references: [id], onDelete: Cascade)
+  serviceItem ServiceCatalogItem @relation(fields: [serviceItemId], references: [id], onDelete: Restrict)
+
+  @@index([tenantId, leaseId])
+  @@index([tenantId, serviceItemId])
+  @@map("lease_services")
+}
+
+model BillingSchedule {
+  id            String                @id @default(uuid()) @db.Uuid
+  tenantId      String                @map("tenant_id") @db.Uuid
+  leaseId       String                @map("lease_id") @db.Uuid
+  propertyId    String                @map("property_id") @db.Uuid
+  name          String
+  cadence       RentCadence           @default(MONTHLY)
+  timeZone      String                @map("time_zone")
+  status        BillingScheduleStatus @default(ACTIVE)
+  nextRunAt     DateTime?             @map("next_run_at")
+  effectiveFrom DateTime              @map("effective_from") @db.Date
+  effectiveTo   DateTime?             @map("effective_to") @db.Date
+  version       Int                   @default(1)
+  createdAt     DateTime              @default(now()) @map("created_at")
+  updatedAt     DateTime              @updatedAt @map("updated_at")
+
+  tenant      Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  lease       Lease        @relation(fields: [leaseId], references: [id], onDelete: Cascade)
+  property    Property     @relation(fields: [propertyId], references: [id], onDelete: Restrict)
+  chargeRules ChargeRule[]
+  billingRuns BillingRun[]
+
+  @@index([tenantId, leaseId, status])
+  @@index([tenantId, status, nextRunAt])
+  @@map("billing_schedules")
+}
+
+model ChargeRule {
+  id           String         @id @default(uuid()) @db.Uuid
+  tenantId     String         @map("tenant_id") @db.Uuid
+  scheduleId   String         @map("schedule_id") @db.Uuid
+  ruleType     ChargeRuleType @map("rule_type")
+  chargeKey    String         @map("charge_key")
+  description  String
+  amount       Decimal?       @db.Decimal(19, 4)
+  currency     String         @db.Char(3)
+  active       Boolean        @default(true)
+  versionNumber Int           @default(1) @map("version_number")
+  createdAt    DateTime       @default(now()) @map("created_at")
+  updatedAt    DateTime       @updatedAt @map("updated_at")
+
+  schedule BillingSchedule @relation(fields: [scheduleId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, scheduleId, chargeKey, versionNumber])
+  @@index([tenantId, scheduleId, active])
+  @@map("charge_rules")
+}
+
+model LateFeePolicy {
+  id            String        @id @default(uuid()) @db.Uuid
+  tenantId      String        @map("tenant_id") @db.Uuid
+  propertyId    String?       @map("property_id") @db.Uuid
+  name          String
+  method        LateFeeMethod
+  graceDays     Int           @default(5) @map("grace_days")
+  flatAmount    Decimal?      @map("flat_amount") @db.Decimal(19, 4)
+  percentRate   Decimal?      @map("percent_rate") @db.Decimal(19, 4)
+  capAmount     Decimal?      @map("cap_amount") @db.Decimal(19, 4)
+  currency      String        @db.Char(3)
+  active        Boolean       @default(true)
+  effectiveFrom DateTime      @map("effective_from") @db.Date
+  effectiveTo   DateTime?     @map("effective_to") @db.Date
+  createdAt     DateTime      @default(now()) @map("created_at")
+  updatedAt     DateTime      @updatedAt @map("updated_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, active])
+  @@map("late_fee_policies")
+}
+
+model BillingRun {
+  id              String           @id @default(uuid()) @db.Uuid
+  tenantId        String           @map("tenant_id") @db.Uuid
+  scheduleId      String?          @map("schedule_id") @db.Uuid
+  propertyId      String?          @map("property_id") @db.Uuid
+  periodKey       String           @map("period_key")
+  status          BillingRunStatus @default(DRAFT)
+  timeZone        String           @map("time_zone")
+  periodStart     DateTime         @map("period_start")
+  periodEnd       DateTime         @map("period_end")
+  previewPayload  Json?            @map("preview_payload")
+  totalsAmount    Decimal?         @map("totals_amount") @db.Decimal(19, 4)
+  currency        String?          @db.Char(3)
+  scheduledJobId  String?          @map("scheduled_job_id")
+  approvedAt      DateTime?        @map("approved_at")
+  approvedByUserId String?         @map("approved_by_user_id") @db.Uuid
+  committedAt     DateTime?        @map("committed_at")
+  failureSummary  Json?            @map("failure_summary")
+  version         Int              @default(1)
+  createdAt       DateTime         @default(now()) @map("created_at")
+  updatedAt       DateTime         @updatedAt @map("updated_at")
+
+  tenant   Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  schedule BillingSchedule? @relation(fields: [scheduleId], references: [id], onDelete: SetNull)
+  invoices Invoice[]
+
+  @@unique([tenantId, periodKey, scheduleId])
+  @@index([tenantId, status, periodKey])
+  @@map("billing_runs")
+}
+
+model Invoice {
+  id              String        @id @default(uuid()) @db.Uuid
+  tenantId        String        @map("tenant_id") @db.Uuid
+  leaseId         String        @map("lease_id") @db.Uuid
+  propertyId      String        @map("property_id") @db.Uuid
+  billingRunId    String?       @map("billing_run_id") @db.Uuid
+  billToPartyId   String        @map("bill_to_party_id") @db.Uuid
+  invoiceNumber   String?       @map("invoice_number")
+  status          InvoiceStatus @default(DRAFT)
+  currency        String        @db.Char(3)
+  issueDate       DateTime?     @map("issue_date") @db.Date
+  dueDate         DateTime?     @map("due_date") @db.Date
+  periodKey       String?       @map("period_key")
+  subtotalAmount  Decimal       @default(0) @map("subtotal_amount") @db.Decimal(19, 4)
+  taxAmount       Decimal       @default(0) @map("tax_amount") @db.Decimal(19, 4)
+  totalAmount     Decimal       @default(0) @map("total_amount") @db.Decimal(19, 4)
+  balanceAmount   Decimal       @default(0) @map("balance_amount") @db.Decimal(19, 4)
+  notes           String?
+  version         Int           @default(1)
+  postedAt        DateTime?     @map("posted_at")
+  voidedAt        DateTime?     @map("voided_at")
+  createdAt       DateTime      @default(now()) @map("created_at")
+  updatedAt       DateTime      @updatedAt @map("updated_at")
+
+  tenant     Tenant                 @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  lease      Lease                  @relation(fields: [leaseId], references: [id], onDelete: Restrict)
+  billTo     Party                  @relation(fields: [billToPartyId], references: [id], onDelete: Restrict)
+  billingRun BillingRun?            @relation(fields: [billingRunId], references: [id], onDelete: SetNull)
+  lines      InvoiceLine[]
+  history    InvoiceStatusHistory[]
+  creditNotes CreditNote[]
+  paymentAllocations PaymentAllocation[]
+
+  @@unique([tenantId, invoiceNumber])
+  @@index([tenantId, leaseId, status])
+  @@index([tenantId, propertyId, status])
+  @@index([tenantId, dueDate, status])
+  @@map("invoices")
+}
+
+model InvoiceLine {
+  id              String   @id @default(uuid()) @db.Uuid
+  tenantId        String   @map("tenant_id") @db.Uuid
+  invoiceId       String   @map("invoice_id") @db.Uuid
+  lineNumber      Int      @map("line_number")
+  description     String
+  chargeKey       String   @map("charge_key")
+  periodKey       String?  @map("period_key")
+  quantity        Decimal  @default(1) @db.Decimal(19, 4)
+  unitPrice       Decimal  @map("unit_price") @db.Decimal(19, 4)
+  taxAmount       Decimal  @default(0) @map("tax_amount") @db.Decimal(19, 4)
+  lineTotal       Decimal  @map("line_total") @db.Decimal(19, 4)
+  currency        String   @db.Char(3)
+  servicePeriodStart DateTime? @map("service_period_start") @db.Date
+  servicePeriodEnd   DateTime? @map("service_period_end") @db.Date
+  sourceType      String?  @map("source_type")
+  sourceId        String?  @map("source_id") @db.Uuid
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  invoice Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, invoiceId, chargeKey])
+  @@unique([invoiceId, lineNumber])
+  @@unique([tenantId, chargeKey])
+  @@index([tenantId, invoiceId])
+  @@map("invoice_lines")
+}
+
+model InvoiceStatusHistory {
+  id         String        @id @default(uuid()) @db.Uuid
+  tenantId   String        @map("tenant_id") @db.Uuid
+  invoiceId  String        @map("invoice_id") @db.Uuid
+  fromStatus InvoiceStatus? @map("from_status")
+  toStatus   InvoiceStatus @map("to_status")
+  reason     String?
+  actorUserId String?      @map("actor_user_id") @db.Uuid
+  recordedAt DateTime      @default(now()) @map("recorded_at")
+  createdAt  DateTime      @default(now()) @map("created_at")
+
+  invoice Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, invoiceId, recordedAt])
+  @@map("invoice_status_history")
+}
+
+model CreditNote {
+  id              String           @id @default(uuid()) @db.Uuid
+  tenantId        String           @map("tenant_id") @db.Uuid
+  invoiceId       String           @map("invoice_id") @db.Uuid
+  leaseId         String           @map("lease_id") @db.Uuid
+  creditNoteNumber String?         @map("credit_note_number")
+  status          CreditNoteStatus @default(DRAFT)
+  currency        String           @db.Char(3)
+  reason          String
+  totalAmount     Decimal          @default(0) @map("total_amount") @db.Decimal(19, 4)
+  version         Int              @default(1)
+  postedAt        DateTime?        @map("posted_at")
+  createdAt       DateTime         @default(now()) @map("created_at")
+  updatedAt       DateTime         @updatedAt @map("updated_at")
+
+  tenant  Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  invoice Invoice          @relation(fields: [invoiceId], references: [id], onDelete: Restrict)
+  lease   Lease            @relation(fields: [leaseId], references: [id], onDelete: Restrict)
+  lines   CreditNoteLine[]
+
+  @@unique([tenantId, creditNoteNumber])
+  @@index([tenantId, invoiceId])
+  @@map("credit_notes")
+}
+
+model CreditNoteLine {
+  id            String  @id @default(uuid()) @db.Uuid
+  tenantId      String  @map("tenant_id") @db.Uuid
+  creditNoteId  String  @map("credit_note_id") @db.Uuid
+  invoiceLineId String? @map("invoice_line_id") @db.Uuid
+  description   String
+  amount        Decimal @db.Decimal(19, 4)
+  currency      String  @db.Char(3)
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  creditNote CreditNote @relation(fields: [creditNoteId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, creditNoteId])
+  @@map("credit_note_lines")
+}
+
+model LedgerAccount {
+  id        String            @id @default(uuid()) @db.Uuid
+  tenantId  String            @map("tenant_id") @db.Uuid
+  code      String
+  name      String
+  accountType LedgerAccountType @map("account_type")
+  currency  String?           @db.Char(3)
+  active    Boolean           @default(true)
+  createdAt DateTime          @default(now()) @map("created_at")
+  updatedAt DateTime          @updatedAt @map("updated_at")
+
+  tenant  Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  entries LedgerEntry[]
+
+  @@unique([tenantId, code])
+  @@map("ledger_accounts")
+}
+
+model LedgerEntry {
+  id            String          @id @default(uuid()) @db.Uuid
+  tenantId      String          @map("tenant_id") @db.Uuid
+  accountId     String          @map("account_id") @db.Uuid
+  leaseId       String?         @map("lease_id") @db.Uuid
+  journalId     String          @map("journal_id") @db.Uuid
+  side          LedgerEntrySide
+  amount        Decimal         @db.Decimal(19, 4)
+  currency      String          @db.Char(3)
+  effectiveAt   DateTime        @map("effective_at")
+  recordedAt    DateTime        @default(now()) @map("recorded_at")
+  postingKey    String          @map("posting_key")
+  sourceType    String          @map("source_type")
+  sourceId      String          @map("source_id") @db.Uuid
+  description   String?
+  reversalOfId  String?         @map("reversal_of_id") @db.Uuid
+  createdAt     DateTime        @default(now()) @map("created_at")
+
+  account LedgerAccount @relation(fields: [accountId], references: [id], onDelete: Restrict)
+  lease   Lease?        @relation(fields: [leaseId], references: [id], onDelete: SetNull)
+
+  @@unique([tenantId, postingKey])
+  @@index([tenantId, leaseId, effectiveAt])
+  @@index([tenantId, accountId, effectiveAt])
+  @@map("ledger_entries")
+}
+
+model OpeningBalanceEntry {
+  id          String   @id @default(uuid()) @db.Uuid
+  tenantId    String   @map("tenant_id") @db.Uuid
+  leaseId     String?  @map("lease_id") @db.Uuid
+  accountCode String   @map("account_code")
+  amount      Decimal  @db.Decimal(19, 4)
+  currency    String   @db.Char(3)
+  asOfDate    DateTime @map("as_of_date") @db.Date
+  notes       String?
+  importedAt  DateTime @default(now()) @map("imported_at")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, asOfDate])
+  @@map("opening_balance_entries")
+}
+
+model BalanceSnapshot {
+  id               String   @id @default(uuid()) @db.Uuid
+  tenantId         String   @map("tenant_id") @db.Uuid
+  leaseId          String?  @map("lease_id") @db.Uuid
+  partyId          String?  @map("party_id") @db.Uuid
+  currency         String   @db.Char(3)
+  asOf             DateTime @map("as_of")
+  balanceAmount    Decimal  @map("balance_amount") @db.Decimal(19, 4)
+  calculationVersion String @default("v1") @map("calculation_version")
+  createdAt        DateTime @default(now()) @map("created_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, leaseId, currency, asOf, calculationVersion])
+  @@index([tenantId, asOf])
+  @@map("balance_snapshots")
+}
+
+model SecurityDeposit {
+  id            String                @id @default(uuid()) @db.Uuid
+  tenantId      String                @map("tenant_id") @db.Uuid
+  leaseId       String                @map("lease_id") @db.Uuid
+  payerPartyId  String                @map("payer_party_id") @db.Uuid
+  currency      String                @db.Char(3)
+  amountDue     Decimal               @map("amount_due") @db.Decimal(19, 4)
+  amountHeld    Decimal               @default(0) @map("amount_held") @db.Decimal(19, 4)
+  status        SecurityDepositStatus @default(DUE)
+  custodyRef    String?               @map("custody_ref")
+  notes         String?
+  version       Int                   @default(1)
+  createdAt     DateTime              @default(now()) @map("created_at")
+  updatedAt     DateTime              @updatedAt @map("updated_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  lease  Lease  @relation(fields: [leaseId], references: [id], onDelete: Restrict)
+  payer  Party  @relation(fields: [payerPartyId], references: [id], onDelete: Restrict)
+  dispositionLines SecurityDepositDispositionLine[]
+
+  @@unique([tenantId, leaseId])
+  @@index([tenantId, status])
+  @@map("security_deposits")
+}
+
+model Meter {
+  id           String      @id @default(uuid()) @db.Uuid
+  tenantId     String      @map("tenant_id") @db.Uuid
+  propertyId   String      @map("property_id") @db.Uuid
+  unitId       String?     @map("unit_id") @db.Uuid
+  meterType    MeterType   @map("meter_type")
+  code         String
+  serialNumber String?     @map("serial_number")
+  unitOfMeasure String     @default("kWh") @map("unit_of_measure")
+  multiplier   Decimal     @default(1) @db.Decimal(19, 4)
+  status       MeterStatus @default(ACTIVE)
+  createdAt    DateTime    @default(now()) @map("created_at")
+  updatedAt    DateTime    @updatedAt @map("updated_at")
+
+  tenant   Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  property Property       @relation(fields: [propertyId], references: [id], onDelete: Restrict)
+  readings MeterReading[]
+
+  @@unique([tenantId, propertyId, code])
+  @@index([tenantId, propertyId, status])
+  @@map("meters")
+}
+
+model MeterReading {
+  id          String              @id @default(uuid()) @db.Uuid
+  tenantId    String              @map("tenant_id") @db.Uuid
+  meterId     String              @map("meter_id") @db.Uuid
+  readAt      DateTime            @map("read_at")
+  value       Decimal             @db.Decimal(19, 4)
+  quality     MeterReadingQuality @default(ACTUAL)
+  source      String              @default("MANUAL")
+  notes       String?
+  createdAt   DateTime            @default(now()) @map("created_at")
+  updatedAt   DateTime            @updatedAt @map("updated_at")
+
+  meter Meter @relation(fields: [meterId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, meterId, readAt, source])
+  @@index([tenantId, meterId, readAt(sort: Desc)])
+  @@map("meter_readings")
+}
+
+model Tariff {
+  id            String   @id @default(uuid()) @db.Uuid
+  tenantId      String   @map("tenant_id") @db.Uuid
+  propertyId    String   @map("property_id") @db.Uuid
+  meterType     MeterType @map("meter_type")
+  name          String
+  currency      String   @db.Char(3)
+  ratePerUnit   Decimal  @map("rate_per_unit") @db.Decimal(19, 4)
+  fixedCharge   Decimal  @default(0) @map("fixed_charge") @db.Decimal(19, 4)
+  effectiveFrom DateTime @map("effective_from") @db.Date
+  effectiveTo   DateTime? @map("effective_to") @db.Date
+  active        Boolean  @default(true)
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, propertyId, meterType, active])
+  @@map("tariffs")
+}
+
+model UtilityAllocationRun {
+  id            String                      @id @default(uuid()) @db.Uuid
+  tenantId      String                      @map("tenant_id") @db.Uuid
+  propertyId    String                      @map("property_id") @db.Uuid
+  periodKey     String                      @map("period_key")
+  status        UtilityAllocationRunStatus  @default(DRAFT)
+  methodVersion String                      @default("equal_split_v1") @map("method_version")
+  previewPayload Json?                      @map("preview_payload")
+  totalsAmount  Decimal?                    @map("totals_amount") @db.Decimal(19, 4)
+  currency      String?                     @db.Char(3)
+  committedAt   DateTime?                   @map("committed_at")
+  createdAt     DateTime                    @default(now()) @map("created_at")
+  updatedAt     DateTime                    @updatedAt @map("updated_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, propertyId, periodKey, methodVersion])
+  @@index([tenantId, status])
+  @@map("utility_allocation_runs")
+}

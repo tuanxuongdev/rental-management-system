@@ -1,0 +1,242 @@
+/// Sprint-11 payments, receipts, refunds, webhooks; thin deposit disposition (Beta unblocker).
+
+enum PaymentChannel {
+  CASH
+  BANK_TRANSFER
+  QR
+  CHECK
+  CARD_HOSTED
+  OTHER
+}
+
+enum PaymentIntentStatus {
+  CREATED
+  REQUIRES_ACTION
+  PROCESSING
+  SUCCEEDED
+  FAILED
+  CANCELLED
+}
+
+enum PaymentTransactionStatus {
+  PENDING
+  SETTLED
+  FAILED
+  REVERSED
+}
+
+enum RefundStatus {
+  PENDING
+  APPROVED
+  EXECUTED
+  REJECTED
+  CANCELLED
+}
+
+enum WebhookProcessingStatus {
+  RECEIVED
+  PROCESSED
+  FAILED
+  IGNORED
+}
+
+enum DepositDispositionType {
+  DEDUCTION
+  REFUND
+  FORFEIT
+  TRANSFER
+  REMAINING_HELD
+}
+
+enum DepositDispositionStatus {
+  DRAFT
+  PENDING_APPROVAL
+  APPROVED
+  EXECUTED
+  REJECTED
+}
+
+model PaymentIntent {
+  id                String              @id @default(uuid()) @db.Uuid
+  tenantId          String              @map("tenant_id") @db.Uuid
+  leaseId           String?             @map("lease_id") @db.Uuid
+  invoiceId         String?             @map("invoice_id") @db.Uuid
+  payerPartyId      String?             @map("payer_party_id") @db.Uuid
+  amount            Decimal             @db.Decimal(19, 4)
+  currency          String              @db.Char(3)
+  channel           PaymentChannel      @default(CARD_HOSTED)
+  status            PaymentIntentStatus @default(CREATED)
+  provider          String              @default("sandbox")
+  providerIntentId  String?             @map("provider_intent_id")
+  idempotencyKey    String?             @map("idempotency_key")
+  checkoutUrl       String?             @map("checkout_url")
+  failureReason     String?             @map("failure_reason")
+  metadata          Json                @default("{}")
+  version           Int                 @default(1)
+  createdAt         DateTime            @default(now()) @map("created_at")
+  updatedAt         DateTime            @updatedAt @map("updated_at")
+
+  tenant       Tenant               @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  transactions PaymentTransaction[]
+
+  @@unique([tenantId, idempotencyKey])
+  @@unique([tenantId, provider, providerIntentId])
+  @@index([tenantId, status, createdAt])
+  @@map("payment_intents")
+}
+
+model PaymentTransaction {
+  id                    String                       @id @default(uuid()) @db.Uuid
+  tenantId              String                       @map("tenant_id") @db.Uuid
+  intentId              String?                      @map("intent_id") @db.Uuid
+  leaseId               String?                      @map("lease_id") @db.Uuid
+  propertyId            String?                      @map("property_id") @db.Uuid
+  payerPartyId          String?                      @map("payer_party_id") @db.Uuid
+  amount                Decimal                      @db.Decimal(19, 4)
+  unallocatedAmount     Decimal                      @map("unallocated_amount") @db.Decimal(19, 4)
+  currency              String                       @db.Char(3)
+  channel               PaymentChannel
+  status                PaymentTransactionStatus     @default(SETTLED)
+  reconciliationStatus  PaymentReconciliationStatus  @default(UNRECONCILED) @map("reconciliation_status")
+  externalReference     String?                      @map("external_reference")
+  provider              String?
+  providerPaymentId     String?                      @map("provider_payment_id")
+  receivedAt            DateTime                     @map("received_at")
+  accountingAt          DateTime                     @map("accounting_at")
+  notes                 String?
+  evidenceDocumentId    String?                      @map("evidence_document_id") @db.Uuid
+  recordedByUserId      String?                      @map("recorded_by_user_id") @db.Uuid
+  version               Int                          @default(1)
+  createdAt             DateTime                     @default(now()) @map("created_at")
+  updatedAt             DateTime                     @updatedAt @map("updated_at")
+
+  tenant             Tenant               @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  intent             PaymentIntent?       @relation(fields: [intentId], references: [id], onDelete: SetNull)
+  allocations        PaymentAllocation[]
+  refunds            Refund[]
+  receipt            PaymentReceipt?
+  reconciliationItems ReconciliationItem[]
+  reversals          PaymentReversal[]
+
+  @@unique([tenantId, id])
+  @@unique([tenantId, provider, providerPaymentId])
+  @@index([tenantId, status, receivedAt])
+  @@index([tenantId, leaseId])
+  @@index([tenantId, propertyId])
+  @@index([tenantId, externalReference])
+  @@index([tenantId, reconciliationStatus])
+  @@map("payment_transactions")
+}
+
+model PaymentAllocation {
+  id                    String   @id @default(uuid()) @db.Uuid
+  tenantId              String   @map("tenant_id") @db.Uuid
+  paymentTransactionId  String   @map("payment_transaction_id") @db.Uuid
+  invoiceId             String   @map("invoice_id") @db.Uuid
+  amount                Decimal  @db.Decimal(19, 4)
+  currency              String   @db.Char(3)
+  effectiveAt           DateTime @map("effective_at")
+  reversedAt            DateTime? @map("reversed_at")
+  reversalOfId          String?  @map("reversal_of_id") @db.Uuid
+  createdAt             DateTime @default(now()) @map("created_at")
+
+  tenant    Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  payment   PaymentTransaction @relation(fields: [paymentTransactionId], references: [id], onDelete: Cascade)
+  invoice   Invoice            @relation(fields: [invoiceId], references: [id], onDelete: Restrict)
+
+  @@index([tenantId, paymentTransactionId])
+  @@index([tenantId, invoiceId])
+  @@map("payment_allocations")
+}
+
+model Refund {
+  id                   String       @id @default(uuid()) @db.Uuid
+  tenantId             String       @map("tenant_id") @db.Uuid
+  paymentTransactionId String       @map("payment_transaction_id") @db.Uuid
+  amount               Decimal      @db.Decimal(19, 4)
+  currency             String       @db.Char(3)
+  reason               String
+  status               RefundStatus @default(PENDING)
+  requestedByUserId    String?      @map("requested_by_user_id") @db.Uuid
+  approvedByUserId     String?      @map("approved_by_user_id") @db.Uuid
+  approvedAt           DateTime?    @map("approved_at")
+  executedByUserId     String?      @map("executed_by_user_id") @db.Uuid
+  executedAt           DateTime?    @map("executed_at")
+  version              Int          @default(1)
+  createdAt            DateTime     @default(now()) @map("created_at")
+  updatedAt            DateTime     @updatedAt @map("updated_at")
+
+  tenant  Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  payment PaymentTransaction @relation(fields: [paymentTransactionId], references: [id], onDelete: Restrict)
+
+  @@unique([tenantId, id])
+  @@index([tenantId, status])
+  @@map("refunds")
+}
+
+model ProviderWebhookEvent {
+  id               String                  @id @default(uuid()) @db.Uuid
+  tenantId         String?                 @map("tenant_id") @db.Uuid
+  provider         String
+  externalEventId  String                  @map("external_event_id")
+  eventType        String                  @map("event_type")
+  signatureValid   Boolean                 @map("signature_valid")
+  payloadHash      String                  @map("payload_hash")
+  payload          Json
+  processingStatus WebhookProcessingStatus @default(RECEIVED) @map("processing_status")
+  processedAt      DateTime?               @map("processed_at")
+  errorMessage     String?                 @map("error_message")
+  createdAt        DateTime                @default(now()) @map("created_at")
+  updatedAt        DateTime                @updatedAt @map("updated_at")
+
+  @@unique([provider, externalEventId])
+  @@index([processingStatus, createdAt])
+  @@map("provider_webhook_events")
+}
+
+model PaymentReceipt {
+  id                   String   @id @default(uuid()) @db.Uuid
+  tenantId             String   @map("tenant_id") @db.Uuid
+  paymentTransactionId String   @unique @map("payment_transaction_id") @db.Uuid
+  receiptNumber        String   @map("receipt_number")
+  issuedAt             DateTime @map("issued_at")
+  currency             String   @db.Char(3)
+  amount               Decimal  @db.Decimal(19, 4)
+  summary              Json     @default("{}")
+  documentId           String?  @map("document_id") @db.Uuid
+  createdAt            DateTime @default(now()) @map("created_at")
+  updatedAt            DateTime @updatedAt @map("updated_at")
+
+  tenant  Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  payment PaymentTransaction @relation(fields: [paymentTransactionId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, receiptNumber])
+  @@index([tenantId, issuedAt])
+  @@map("payment_receipts")
+}
+
+model SecurityDepositDispositionLine {
+  id             String                   @id @default(uuid()) @db.Uuid
+  tenantId       String                   @map("tenant_id") @db.Uuid
+  depositId      String                   @map("deposit_id") @db.Uuid
+  dispositionType DepositDispositionType  @map("disposition_type")
+  amount         Decimal                  @db.Decimal(19, 4)
+  currency       String                   @db.Char(3)
+  reason         String
+  status         DepositDispositionStatus @default(DRAFT)
+  effectiveAt    DateTime                 @map("effective_at")
+  executedAt     DateTime?                @map("executed_at")
+  requestedByUserId String?               @map("requested_by_user_id") @db.Uuid
+  approvedByUserId  String?               @map("approved_by_user_id") @db.Uuid
+  executedByUserId  String?               @map("executed_by_user_id") @db.Uuid
+  version        Int                      @default(1)
+  createdAt      DateTime                 @default(now()) @map("created_at")
+  updatedAt      DateTime                 @updatedAt @map("updated_at")
+
+  tenant  Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  deposit SecurityDeposit @relation(fields: [depositId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, id])
+  @@index([tenantId, depositId, status])
+  @@map("security_deposit_disposition_lines")
+}

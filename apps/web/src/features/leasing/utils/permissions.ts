@@ -1,0 +1,17 @@
+import { PERMISSION_KEYS } from '@rpm/contracts';
+
+export { hasPermission, canMutate } from '@/features/admin/utils/permissions';
+
+export const LEASE_PERMISSIONS = {
+  list: PERMISSION_KEYS.LEASES_LIST,
+  view: PERMISSION_KEYS.LEASES_VIEW,
+  create: PERMISSION_KEYS.LEASES_CREATE,
+  update: PERMISSION_KEYS.LEASES_UPDATE,
+  activate: PERMISSION_KEYS.LEASES_ACTIVATE,
+  overrideDoNotRent: PERMISSION_KEYS.LEASES_OVERRIDE_DO_NOT_RENT,
+  moveIn: PERMISSION_KEYS.LEASES_MOVE_IN,
+  renew: PERMISSION_KEYS.LEASES_RENEW,
+  transfer: PERMISSION_KEYS.LEASES_TRANSFER,
+  moveOut: PERMISSION_KEYS.LEASES_MOVE_OUT,
+  terminate: PERMISSION_KEYS.LEASES_TERMINATE,
+} as const;

@@ -21,6 +21,7 @@ export type DocumentUploadInput = {
   /** Party id for resident link (contracts use partyId, not resident profile id). */
   partyId?: string;
   propertyId?: string;
+  leaseId?: string;
 };
 
 export function useDocumentUpload() {
@@ -47,7 +48,14 @@ export function useDocumentUpload() {
         checksumSha256,
         partyId: input.partyId,
         propertyId: input.propertyId,
-        linkType: input.partyId ? 'RESIDENT' : input.propertyId ? 'PROPERTY' : undefined,
+        leaseId: input.leaseId,
+        linkType: input.leaseId
+          ? 'LEASE'
+          : input.partyId
+            ? 'RESIDENT'
+            : input.propertyId
+              ? 'PROPERTY'
+              : undefined,
         contentBase64,
       });
 

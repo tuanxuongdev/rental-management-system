@@ -1,0 +1,143 @@
+/// Sprint-12 reconciliation runs, aging support, accounting periods, payment reversals.
+
+enum AccountingPeriodStatus {
+  OPEN
+  CLOSED
+}
+
+enum ReconciliationSourceType {
+  PROVIDER
+  BANK_FILE
+  CASH_UP
+}
+
+enum ReconciliationRunStatus {
+  DRAFT
+  IN_PROGRESS
+  PENDING_APPROVAL
+  COMPLETED
+  CANCELLED
+}
+
+enum ReconciliationItemStatus {
+  SUGGESTED
+  MATCHED
+  UNMATCHED
+  EXCEPTION_ACCEPTED
+  DISPUTED
+  RESOLVED
+}
+
+enum PaymentReconciliationStatus {
+  UNRECONCILED
+  MATCHED
+  EXCEPTION
+}
+
+enum PaymentReversalStatus {
+  PENDING
+  EXECUTED
+}
+
+model AccountingPeriod {
+  id             String                  @id @default(uuid()) @db.Uuid
+  tenantId       String                  @map("tenant_id") @db.Uuid
+  periodKey      String                  @map("period_key")
+  status         AccountingPeriodStatus  @default(OPEN)
+  closedAt       DateTime?               @map("closed_at")
+  closedByUserId String?                 @map("closed_by_user_id") @db.Uuid
+  reopenReason   String?                 @map("reopen_reason")
+  version        Int                     @default(1)
+  createdAt      DateTime                @default(now()) @map("created_at")
+  updatedAt      DateTime                @updatedAt @map("updated_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, periodKey])
+  @@unique([tenantId, id])
+  @@index([tenantId, status])
+  @@map("accounting_periods")
+}
+
+model ReconciliationRun {
+  id                String                   @id @default(uuid()) @db.Uuid
+  tenantId          String                   @map("tenant_id") @db.Uuid
+  sourceType        ReconciliationSourceType @map("source_type")
+  periodStart       DateTime                 @map("period_start") @db.Date
+  periodEnd         DateTime                 @map("period_end") @db.Date
+  currency          String                   @db.Char(3)
+  status            ReconciliationRunStatus  @default(DRAFT)
+  provider          String?
+  documentId        String?                  @map("document_id") @db.Uuid
+  controlTotal      Decimal?                 @map("control_total") @db.Decimal(19, 4)
+  matchedTotal      Decimal                  @default(0) @map("matched_total") @db.Decimal(19, 4)
+  unmatchedTotal    Decimal                  @default(0) @map("unmatched_total") @db.Decimal(19, 4)
+  varianceAmount    Decimal                  @default(0) @map("variance_amount") @db.Decimal(19, 4)
+  toleranceAmount   Decimal                  @default(0.0100) @map("tolerance_amount") @db.Decimal(19, 4)
+  overrideReason    String?                  @map("override_reason")
+  preparedByUserId  String                   @map("prepared_by_user_id") @db.Uuid
+  approvedByUserId  String?                  @map("approved_by_user_id") @db.Uuid
+  completedAt       DateTime?                @map("completed_at")
+  version           Int                      @default(1)
+  createdAt         DateTime                 @default(now()) @map("created_at")
+  updatedAt         DateTime                 @updatedAt @map("updated_at")
+
+  tenant Tenant               @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  items  ReconciliationItem[]
+
+  @@unique([tenantId, id])
+  @@index([tenantId, status])
+  @@index([tenantId, periodStart, periodEnd])
+  @@map("reconciliation_runs")
+}
+
+model ReconciliationItem {
+  id                    String                    @id @default(uuid()) @db.Uuid
+  tenantId              String                    @map("tenant_id") @db.Uuid
+  runId                 String                    @map("run_id") @db.Uuid
+  status                ReconciliationItemStatus  @default(UNMATCHED)
+  externalReference     String?                   @map("external_reference")
+  externalAmount        Decimal?                  @map("external_amount") @db.Decimal(19, 4)
+  externalDate          DateTime?                 @map("external_date") @db.Date
+  paymentTransactionId  String?                   @map("payment_transaction_id") @db.Uuid
+  resolutionCode        String?                   @map("resolution_code")
+  resolutionReason      String?                   @map("resolution_reason")
+  assignedToUserId      String?                   @map("assigned_to_user_id") @db.Uuid
+  version               Int                       @default(1)
+  createdAt             DateTime                  @default(now()) @map("created_at")
+  updatedAt             DateTime                  @updatedAt @map("updated_at")
+
+  tenant  Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  run     ReconciliationRun @relation(fields: [tenantId, runId], references: [tenantId, id], onDelete: Cascade)
+  payment PaymentTransaction? @relation(fields: [paymentTransactionId], references: [id], onDelete: SetNull)
+
+  @@unique([tenantId, id])
+  @@index([tenantId, runId, status])
+  @@index([tenantId, paymentTransactionId])
+  @@map("reconciliation_items")
+}
+
+model PaymentReversal {
+  id                   String                @id @default(uuid()) @db.Uuid
+  tenantId             String                @map("tenant_id") @db.Uuid
+  paymentTransactionId String                @map("payment_transaction_id") @db.Uuid
+  amount               Decimal               @db.Decimal(19, 4)
+  currency             String                @db.Char(3)
+  reason               String
+  status               PaymentReversalStatus @default(PENDING)
+  requestedByUserId    String                @map("requested_by_user_id") @db.Uuid
+  executedByUserId     String?               @map("executed_by_user_id") @db.Uuid
+  executedAt           DateTime?             @map("executed_at")
+  ledgerJournalId      String?               @map("ledger_journal_id") @db.Uuid
+  version              Int                   @default(1)
+  createdAt            DateTime              @default(now()) @map("created_at")
+  updatedAt            DateTime              @updatedAt @map("updated_at")
+
+  tenant  Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  payment PaymentTransaction @relation(fields: [paymentTransactionId], references: [id], onDelete: Restrict)
+
+  @@unique([tenantId, id])
+  @@index([tenantId, paymentTransactionId])
+  @@index([tenantId, status])
+  @@map("payment_reversals")
+}

@@ -35,10 +35,14 @@ model Party {
   residentProfile        ResidentProfile?
   identifiers            PartyIdentifier[]
   waitlistEntries        WaitlistEntry[]
-  doNotRentFlags         DoNotRentFlag[]
-  documentLinks          DocumentLink[]
+  leaseParties           LeaseParty[]
+  occupancyEvents        OccupancyEvent[]
   propertyOwnerships     PropertyOwnership[]
   managementAgreementParties ManagementAgreementParty[]
+  doNotRentFlags         DoNotRentFlag[]
+  documentLinks          DocumentLink[]
+  invoices               Invoice[]
+  securityDeposits       SecurityDeposit[]
 
   @@index([tenantId, status])
   @@index([tenantId, displayName])

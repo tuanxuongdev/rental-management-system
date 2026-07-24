@@ -1,0 +1,255 @@
+/// Lease creation/activation (Sprint-08) and lifecycle occupancy (Sprint-09).
+
+enum LeaseStatus {
+  DRAFT
+  ACTIVE
+  NOTICE
+  ENDED
+  CANCELLED
+}
+
+enum LeaseOccupancyState {
+  NOT_MOVED_IN
+  OCCUPIED
+  MOVED_OUT
+}
+
+enum LeaseMoveOutStatus {
+  NONE
+  IN_PROGRESS
+  COMPLETED
+}
+
+enum LeasePartyRole {
+  PRIMARY_LEASEHOLDER
+  LEASEHOLDER
+  OCCUPANT
+  GUARANTOR
+  PAYER
+  SPONSOR
+}
+
+enum LeaseAllocationType {
+  WHOLE_UNIT
+  BED
+  CAPACITY
+}
+
+enum LeaseAllocationStatus {
+  ACTIVE
+  ENDED
+  CANCELLED
+}
+
+enum RentCadence {
+  MONTHLY
+  WEEKLY
+  DAILY
+  OTHER
+}
+
+enum OccupancyEventType {
+  MOVED_IN
+  MOVED_OUT
+  NOTICE_RECORDED
+  RENEWED
+  TRANSFERRED
+  TERMINATED
+  HOLDOVER_FLAGGED
+}
+
+enum AssetKeyStatus {
+  ISSUED
+  RETURNED
+  LOST
+  DAMAGED
+}
+
+model Lease {
+  id           String      @id @default(uuid()) @db.Uuid
+  tenantId     String      @map("tenant_id") @db.Uuid
+  propertyId   String      @map("property_id") @db.Uuid
+  /// Assigned on activation; unique per tenant when present.
+  leaseNumber  String?     @map("lease_number")
+  status       LeaseStatus @default(DRAFT)
+  occupancyState LeaseOccupancyState @default(NOT_MOVED_IN) @map("occupancy_state")
+  currency     String      @db.Char(3)
+  startDate    DateTime    @map("start_date") @db.Date
+  endDate      DateTime?   @map("end_date") @db.Date
+  activatedAt  DateTime?   @map("activated_at")
+  cancelledAt  DateTime?   @map("cancelled_at")
+  movedInAt    DateTime?   @map("moved_in_at")
+  movedOutAt   DateTime?   @map("moved_out_at")
+  noticeDate   DateTime?   @map("notice_date") @db.Date
+  noticeEffectiveEnd DateTime? @map("notice_effective_end") @db.Date
+  terminationReason String? @map("termination_reason")
+  terminatedAt DateTime?   @map("terminated_at")
+  renewedFromLeaseId String? @map("renewed_from_lease_id") @db.Uuid
+  moveOutStatus LeaseMoveOutStatus @default(NONE) @map("move_out_status")
+  /// Move-in checklist payload (keys, readings values, acknowledgements) — not finance meters.
+  moveInChecklist Json?    @map("move_in_checklist")
+  /// Move-out checklist + deposit disposition preview (no security_deposits ledger until Sprint-10).
+  moveOutChecklist Json?   @map("move_out_checklist")
+  holdoverFlag Boolean     @default(false) @map("holdover_flag")
+  notes        String?
+  version      Int         @default(1)
+  createdAt    DateTime    @default(now()) @map("created_at")
+  updatedAt    DateTime    @updatedAt @map("updated_at")
+  deletedAt    DateTime?   @map("deleted_at")
+
+  tenant       Tenant                 @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  property     Property               @relation(fields: [propertyId], references: [id], onDelete: Restrict)
+  renewedFrom  Lease?                 @relation("LeaseRenewals", fields: [renewedFromLeaseId], references: [id], onDelete: SetNull)
+  renewals     Lease[]                @relation("LeaseRenewals")
+  terms        LeaseTerm[]
+  parties      LeaseParty[]
+  allocations  LeaseAllocation[]
+  statusHistory LeaseStatusHistory[]
+  occupancyEvents OccupancyEvent[]
+  assetKeys    AssetKey[]
+  documentLinks DocumentLink[]
+  leaseServices LeaseService[]
+  billingSchedules BillingSchedule[]
+  invoices     Invoice[]
+  creditNotes  CreditNote[]
+  ledgerEntries LedgerEntry[]
+  securityDeposits SecurityDeposit[]
+
+  @@unique([tenantId, leaseNumber])
+  @@index([tenantId, propertyId, status])
+  @@index([tenantId, status, startDate])
+  @@index([tenantId, occupancyState, endDate])
+  @@index([tenantId, moveOutStatus])
+  @@map("leases")
+}
+
+model LeaseTerm {
+  id              String      @id @default(uuid()) @db.Uuid
+  tenantId        String      @map("tenant_id") @db.Uuid
+  leaseId         String      @map("lease_id") @db.Uuid
+  versionNumber   Int         @map("version_number")
+  isCurrent       Boolean     @default(true) @map("is_current")
+  currency        String      @db.Char(3)
+  rentAmount      Decimal     @map("rent_amount") @db.Decimal(19, 4)
+  depositAmount   Decimal     @map("deposit_amount") @db.Decimal(19, 4)
+  rentCadence     RentCadence @default(MONTHLY) @map("rent_cadence")
+  effectiveFrom   DateTime    @map("effective_from") @db.Date
+  effectiveTo     DateTime?   @map("effective_to") @db.Date
+  /// Optional MVP recurring charge inputs (non-authoritative until Sprint-10 billing).
+  recurringCharges Json       @default("[]") @map("recurring_charges")
+  lockedAt        DateTime?   @map("locked_at")
+  createdAt       DateTime    @default(now()) @map("created_at")
+  updatedAt       DateTime    @updatedAt @map("updated_at")
+
+  lease Lease @relation(fields: [leaseId], references: [id], onDelete: Cascade)
+
+  @@unique([leaseId, versionNumber])
+  @@index([tenantId, leaseId, isCurrent])
+  @@map("lease_terms")
+}
+
+model LeaseParty {
+  id            String         @id @default(uuid()) @db.Uuid
+  tenantId      String         @map("tenant_id") @db.Uuid
+  leaseId       String         @map("lease_id") @db.Uuid
+  partyId       String         @map("party_id") @db.Uuid
+  role          LeasePartyRole
+  isPrimary     Boolean        @default(false) @map("is_primary")
+  effectiveFrom DateTime       @map("effective_from") @db.Date
+  effectiveTo   DateTime?      @map("effective_to") @db.Date
+  createdAt     DateTime       @default(now()) @map("created_at")
+  updatedAt     DateTime       @updatedAt @map("updated_at")
+
+  lease Lease @relation(fields: [leaseId], references: [id], onDelete: Cascade)
+  party Party @relation(fields: [partyId], references: [id], onDelete: Restrict)
+
+  @@index([tenantId, leaseId])
+  @@index([tenantId, partyId])
+  @@unique([leaseId, partyId, role])
+  @@map("lease_parties")
+}
+
+model LeaseAllocation {
+  id               String                @id @default(uuid()) @db.Uuid
+  tenantId         String                @map("tenant_id") @db.Uuid
+  leaseId          String                @map("lease_id") @db.Uuid
+  unitId           String                @map("unit_id") @db.Uuid
+  bedId            String?               @map("bed_id") @db.Uuid
+  allocationType   LeaseAllocationType   @map("allocation_type")
+  /// Capacity units claimed when allocationType = CAPACITY (else 1).
+  capacityQuantity Int                   @default(1) @map("capacity_quantity")
+  status           LeaseAllocationStatus @default(ACTIVE)
+  effectiveFrom    DateTime              @map("effective_from")
+  /// Null = open-ended; half-open range [effectiveFrom, effectiveTo).
+  effectiveTo      DateTime?             @map("effective_to")
+  createdAt        DateTime              @default(now()) @map("created_at")
+  updatedAt        DateTime              @updatedAt @map("updated_at")
+
+  lease Lease @relation(fields: [leaseId], references: [id], onDelete: Cascade)
+  unit  Unit  @relation(fields: [unitId], references: [id], onDelete: Restrict)
+  bed   Bed?  @relation(fields: [bedId], references: [id], onDelete: Restrict)
+
+  @@index([tenantId, leaseId])
+  @@index([tenantId, unitId, status])
+  @@index([tenantId, bedId, status])
+  @@map("lease_allocations")
+}
+
+model LeaseStatusHistory {
+  id           String       @id @default(uuid()) @db.Uuid
+  tenantId     String       @map("tenant_id") @db.Uuid
+  leaseId      String       @map("lease_id") @db.Uuid
+  fromStatus   LeaseStatus? @map("from_status")
+  toStatus     LeaseStatus  @map("to_status")
+  reason       String?
+  actorUserId  String?      @map("actor_user_id") @db.Uuid
+  recordedAt   DateTime     @default(now()) @map("recorded_at")
+  effectiveAt  DateTime     @default(now()) @map("effective_at")
+  metadata     Json         @default("{}")
+
+  lease Lease @relation(fields: [leaseId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, leaseId, recordedAt])
+  @@map("lease_status_history")
+}
+
+model OccupancyEvent {
+  id          String             @id @default(uuid()) @db.Uuid
+  tenantId    String             @map("tenant_id") @db.Uuid
+  leaseId     String             @map("lease_id") @db.Uuid
+  partyId     String?            @map("party_id") @db.Uuid
+  eventType   OccupancyEventType @map("event_type")
+  occurredAt  DateTime           @map("occurred_at")
+  recordedAt  DateTime           @default(now()) @map("recorded_at")
+  actorUserId String?            @map("actor_user_id") @db.Uuid
+  payload     Json               @default("{}")
+  createdAt   DateTime           @default(now()) @map("created_at")
+
+  lease Lease  @relation(fields: [leaseId], references: [id], onDelete: Cascade)
+  party Party? @relation(fields: [partyId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId, leaseId, occurredAt])
+  @@index([tenantId, eventType, occurredAt])
+  @@map("occupancy_events")
+}
+
+model AssetKey {
+  id         String         @id @default(uuid()) @db.Uuid
+  tenantId   String         @map("tenant_id") @db.Uuid
+  leaseId    String         @map("lease_id") @db.Uuid
+  unitId     String?        @map("unit_id") @db.Uuid
+  label      String
+  code       String?
+  status     AssetKeyStatus @default(ISSUED)
+  issuedAt   DateTime       @map("issued_at")
+  returnedAt DateTime?      @map("returned_at")
+  notes      String?
+  createdAt  DateTime       @default(now()) @map("created_at")
+  updatedAt  DateTime       @updatedAt @map("updated_at")
+
+  lease Lease @relation(fields: [leaseId], references: [id], onDelete: Cascade)
+  unit  Unit? @relation(fields: [unitId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId, leaseId, status])
+  @@map("asset_keys")
+}

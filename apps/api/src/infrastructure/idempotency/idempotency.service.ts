@@ -95,6 +95,17 @@ export class IdempotencyService {
           message: 'Idempotency key was already used with a different request body',
           code: 'IDEMPOTENCY_KEY_REUSED',
         });
+      } else if (existing.status === IdempotencyKeyStatus.COMPLETED) {
+        return {
+          replayed: true,
+          statusCode: existing.responseStatus,
+          body: existing.responseBody,
+        };
+      } else if (existing.status === IdempotencyKeyStatus.PROCESSING) {
+        throw new ConflictException({
+          message: 'Idempotency key is already being processed',
+          code: 'IDEMPOTENCY_IN_PROGRESS',
+        });
       } else {
         return {
           replayed: true,
@@ -143,6 +154,13 @@ export class IdempotencyService {
         });
       }
 
+      if (raced.status === IdempotencyKeyStatus.PROCESSING) {
+        throw new ConflictException({
+          message: 'Idempotency key is already being processed',
+          code: 'IDEMPOTENCY_IN_PROGRESS',
+        });
+      }
+
       return {
         replayed: true,
         statusCode: raced.responseStatus,
@@ -155,6 +173,127 @@ export class IdempotencyService {
       statusCode: input.responseStatus,
       body: input.responseBody,
     };
+  }
+
+  /**
+   * Reserve an idempotency key at the start of a money transaction (O2).
+   * Returns a replay when a prior COMPLETED response exists for the same hash.
+   */
+  async begin(
+    tx: Prisma.TransactionClient,
+    input: {
+      tenantId: string | null;
+      actorScope: ActorScope;
+      operation: string;
+      key: string;
+      requestHash: string;
+    },
+  ): Promise<{ replayed: true; statusCode: number; body: unknown } | { replayed: false }> {
+    const existing = await tx.idempotencyKey.findFirst({
+      where: {
+        tenantId: input.tenantId,
+        actorScope: input.actorScope,
+        operation: input.operation,
+        key: input.key,
+      },
+    });
+
+    if (existing !== null) {
+      if (existing.expiresAt <= new Date()) {
+        await tx.idempotencyKey.delete({ where: { id: existing.id } });
+      } else if (existing.requestHash !== input.requestHash) {
+        throw new ConflictException({
+          message: 'Idempotency key was already used with a different request body',
+          code: 'IDEMPOTENCY_KEY_REUSED',
+        });
+      } else if (existing.status === IdempotencyKeyStatus.COMPLETED) {
+        return {
+          replayed: true,
+          statusCode: existing.responseStatus,
+          body: existing.responseBody,
+        };
+      } else if (existing.status === IdempotencyKeyStatus.PROCESSING) {
+        throw new ConflictException({
+          message: 'Idempotency key is already being processed',
+          code: 'IDEMPOTENCY_IN_PROGRESS',
+        });
+      }
+    }
+
+    try {
+      await tx.idempotencyKey.create({
+        data: {
+          tenantId: input.tenantId,
+          actorScope: input.actorScope,
+          operation: input.operation,
+          key: input.key,
+          requestHash: input.requestHash,
+          status: IdempotencyKeyStatus.PROCESSING,
+          responseStatus: 0,
+          responseBody: {},
+          expiresAt: new Date(Date.now() + IDEMPOTENCY_DEFAULT_TTL_HOURS * 60 * 60 * 1000),
+        },
+      });
+      return { replayed: false };
+    } catch (error) {
+      if (!isPrismaUniqueViolation(error)) {
+        throw error;
+      }
+      const raced = await tx.idempotencyKey.findFirst({
+        where: {
+          tenantId: input.tenantId,
+          actorScope: input.actorScope,
+          operation: input.operation,
+          key: input.key,
+        },
+      });
+      if (raced === null) {
+        throw error;
+      }
+      if (raced.requestHash !== input.requestHash) {
+        throw new ConflictException({
+          message: 'Idempotency key was already used with a different request body',
+          code: 'IDEMPOTENCY_KEY_REUSED',
+        });
+      }
+      if (raced.status === IdempotencyKeyStatus.COMPLETED) {
+        return {
+          replayed: true,
+          statusCode: raced.responseStatus,
+          body: raced.responseBody,
+        };
+      }
+      throw new ConflictException({
+        message: 'Idempotency key is already being processed',
+        code: 'IDEMPOTENCY_IN_PROGRESS',
+      });
+    }
+  }
+
+  async complete(
+    tx: Prisma.TransactionClient,
+    input: {
+      tenantId: string | null;
+      actorScope: ActorScope;
+      operation: string;
+      key: string;
+      responseStatus: number;
+      responseBody: unknown;
+    },
+  ): Promise<void> {
+    await tx.idempotencyKey.updateMany({
+      where: {
+        tenantId: input.tenantId,
+        actorScope: input.actorScope,
+        operation: input.operation,
+        key: input.key,
+      },
+      data: {
+        status: IdempotencyKeyStatus.COMPLETED,
+        responseStatus: input.responseStatus,
+        responseBody: input.responseBody as Prisma.InputJsonValue,
+      },
+    });
   }
 
   writeReplayHeader(response: Response, replayed: boolean): void {

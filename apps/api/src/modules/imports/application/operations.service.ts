@@ -8,17 +8,35 @@ import {
 
 import { PrismaService } from '../../../infrastructure/prisma/prisma.module';
 
-import type { ImportJobStatus } from '@prisma/client';
+import type { BillingRunStatus, ImportJobStatus } from '@prisma/client';
 
 type OpsRow = {
   id: string;
   type: string;
-  kind: 'IMPORT' | 'EXPORT';
+  kind: 'IMPORT' | 'EXPORT' | 'BILLING_RUN';
   status: ImportJobStatus;
   createdAt: Date;
   updatedAt: Date;
   counts?: Record<string, number>;
 };
+
+function mapBillingRunStatus(status: BillingRunStatus): ImportJobStatus {
+  switch (status) {
+    case 'COMMITTING':
+      return 'PROCESSING';
+    case 'COMPLETED':
+      return 'COMPLETED';
+    case 'FAILED':
+      return 'FAILED';
+    case 'PARTIAL':
+      return 'PARTIALLY_COMPLETED';
+    case 'DRAFT':
+    case 'PREVIEWED':
+    case 'APPROVED':
+    default:
+      return 'QUEUED';
+  }
+}
 
 @Injectable()
 export class OperationsService {
@@ -33,7 +51,7 @@ export class OperationsService {
     let cursorCreatedAt: Date | undefined;
     let cursorId: string | undefined;
     if (options?.after !== undefined) {
-      const [importAnchor, exportAnchor] = await Promise.all([
+      const [importAnchor, exportAnchor, billingAnchor] = await Promise.all([
         this.prisma.importJob.findFirst({
           where: { id: options.after, tenantId: organizationId, deletedAt: null },
           select: { id: true, createdAt: true },
@@ -42,8 +60,12 @@ export class OperationsService {
           where: { id: options.after, tenantId: organizationId },
           select: { id: true, createdAt: true },
         }),
+        this.prisma.billingRun.findFirst({
+          where: { id: options.after, tenantId: organizationId },
+          select: { id: true, createdAt: true },
+        }),
       ]);
-      const anchor = importAnchor ?? exportAnchor;
+      const anchor = importAnchor ?? exportAnchor ?? billingAnchor;
       if (anchor !== null) {
         cursorCreatedAt = anchor.createdAt;
         cursorId = anchor.id;
@@ -61,7 +83,7 @@ export class OperationsService {
           }
         : {};
 
-    const [importJobs, exportJobs] = await Promise.all([
+    const [importJobs, exportJobs, billingRuns] = await Promise.all([
       this.prisma.importJob.findMany({
         where: {
           tenantId: organizationId,
@@ -72,6 +94,14 @@ export class OperationsService {
         take: limit + 1,
       }),
       this.prisma.exportJob.findMany({
+        where: {
+          tenantId: organizationId,
+          ...createdAtFilter,
+        },
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+        take: limit + 1,
+      }),
+      this.prisma.billingRun.findMany({
         where: {
           tenantId: organizationId,
           ...createdAtFilter,
@@ -105,6 +135,14 @@ export class OperationsService {
           job.counts !== null && typeof job.counts === 'object' && !Array.isArray(job.counts)
             ? (job.counts as Record<string, number>)
             : undefined,
+      })),
+      ...billingRuns.map((run) => ({
+        id: run.id,
+        type: 'BILLING_RUN',
+        kind: 'BILLING_RUN' as const,
+        status: mapBillingRunStatus(run.status),
+        createdAt: run.createdAt,
+        updatedAt: run.updatedAt,
       })),
     ].sort((a, b) => {
       const byTime = b.createdAt.getTime() - a.createdAt.getTime();

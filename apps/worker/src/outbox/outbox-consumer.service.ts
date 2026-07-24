@@ -8,6 +8,11 @@ import {
 import { OutboxEventStatus, Prisma } from '@prisma/client';
 
 import {
+  BILLING_RUN_COMMIT_EVENT_TYPE,
+  isBillingRunCommitPayload,
+  processBillingRunCommit,
+} from '../handlers/billing-run.handler';
+import {
   INVENTORY_IMPORT_COMMIT_EVENT,
   processInventoryImportCommit,
   type InventoryImportCommitPayload,
@@ -197,6 +202,17 @@ export class OutboxConsumerService implements OnModuleInit, OnModuleDestroy {
         throw new Error('inventory.import.commit payload missing tenantId or importJobId');
       }
       await processInventoryImportCommit(this.prisma, commitPayload);
+      return;
+    }
+
+    if (eventType === BILLING_RUN_COMMIT_EVENT_TYPE) {
+      if (!isBillingRunCommitPayload(payload)) {
+        throw new Error('Invalid billing.run.commit payload');
+      }
+      await processBillingRunCommit(this.prisma, {
+        tenantId: String(payload.tenantId),
+        billingRunId: String(payload.billingRunId),
+      });
       return;
     }
 

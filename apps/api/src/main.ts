@@ -13,6 +13,8 @@ async function bootstrap(): Promise<void> {
   const config = loadApiConfig();
   const app = await NestFactory.create<NestExpressApplication>(AppModule, {
     logger: ['error', 'warn', 'log'],
+    // Preserve provider webhook bytes for HMAC verification (fail-closed).
+    rawBody: true,
   });
 
   app.use(cookieParser());

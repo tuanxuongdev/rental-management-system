@@ -7,12 +7,16 @@ import { CorrelationIdMiddleware } from './common/context/correlation-id.middlew
 import { ObservabilityModule } from './common/observability/observability.module';
 import { HealthModule } from './health/health.module';
 import { PrismaModule } from './infrastructure/prisma/prisma.module';
+import { BillingModule } from './modules/billing/billing.module';
 import { DocumentsModule } from './modules/documents/documents.module';
 import { IdentityModule } from './modules/identity/identity.module';
 import { ImportsModule } from './modules/imports/imports.module';
 import { InventoryModule } from './modules/inventory/inventory.module';
+import { LeasingModule } from './modules/leasing/leasing.module';
 import { MetaModule } from './modules/meta/meta.module';
 import { PartiesModule } from './modules/parties/parties.module';
+import { PaymentsModule } from './modules/payments/payments.module';
+import { ReconciliationModule } from './modules/reconciliation/reconciliation.module';
 import { ResidentsModule } from './modules/residents/residents.module';
 import { TenancyModule } from './modules/tenancy/tenancy.module';
 
@@ -34,6 +38,10 @@ import { TenancyModule } from './modules/tenancy/tenancy.module';
     PartiesModule,
     ImportsModule,
     ResidentsModule,
+    BillingModule,
+    PaymentsModule,
+    ReconciliationModule,
+    LeasingModule,
     DocumentsModule,
   ],
 })

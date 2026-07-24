@@ -4,12 +4,14 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useMemo, type ReactNode } from 'react';
 
-import type { MeResponse } from '@rpm/contracts';
+import { UTILITIES_ALLOCATION_ENABLED, type MeResponse } from '@rpm/contracts';
 
 import { OrganizationSwitcher, ReadOnlyBanner, SupportAccessBanner, useMe } from '@/features/admin';
 import { DOCUMENT_PERMISSIONS } from '@/features/documents';
+import { FINANCE_PERMISSIONS, METERS_PERMISSIONS, UTILITIES_PERMISSIONS } from '@/features/finance';
 import { IMPORT_PERMISSIONS, hasPermission } from '@/features/imports';
 import { PropertyScopeSelector } from '@/features/inventory';
+import { LEASE_PERMISSIONS } from '@/features/leasing';
 import { RESIDENT_PERMISSIONS } from '@/features/residents';
 import { logoutRequest } from '@/lib/auth-api';
 import { useAuthStore } from '@/state/auth-store';
@@ -60,6 +62,69 @@ function buildPeopleNav(me: MeResponse | undefined) {
   return items;
 }
 
+function buildLeasingNav(me: MeResponse | undefined) {
+  const items: { href: string; label: string }[] = [];
+  if (hasPermission(me, LEASE_PERMISSIONS.list)) {
+    items.push({ href: '/app/leases', label: 'Leases' });
+  }
+  return items;
+}
+
+function buildFinanceNav(me: MeResponse | undefined) {
+  const items: { href: string; label: string }[] = [];
+  if (
+    hasPermission(me, FINANCE_PERMISSIONS.paymentsList) ||
+    hasPermission(me, FINANCE_PERMISSIONS.invoicesList) ||
+    hasPermission(me, FINANCE_PERMISSIONS.reportsView)
+  ) {
+    items.push({ href: '/app/finance', label: 'Overview' });
+  }
+  if (hasPermission(me, FINANCE_PERMISSIONS.paymentsList)) {
+    items.push({ href: '/app/finance/payments', label: 'Payments' });
+  }
+  if (
+    hasPermission(me, FINANCE_PERMISSIONS.reportsView) ||
+    hasPermission(me, FINANCE_PERMISSIONS.paymentsList) ||
+    hasPermission(me, FINANCE_PERMISSIONS.invoicesList)
+  ) {
+    items.push({ href: '/app/finance/arrears', label: 'Arrears' });
+  }
+  if (hasPermission(me, FINANCE_PERMISSIONS.reconciliationView)) {
+    items.push({ href: '/app/finance/reconciliation', label: 'Reconciliation' });
+  }
+  if (
+    hasPermission(me, FINANCE_PERMISSIONS.periodClose) ||
+    hasPermission(me, FINANCE_PERMISSIONS.reconciliationView)
+  ) {
+    items.push({ href: '/app/finance/periods', label: 'Periods' });
+  }
+  if (hasPermission(me, FINANCE_PERMISSIONS.reconciliationPerform)) {
+    items.push({ href: '/app/finance/comparisons', label: 'Comparisons' });
+  }
+  if (hasPermission(me, FINANCE_PERMISSIONS.exportsCreate)) {
+    items.push({ href: '/app/finance/exports', label: 'Exports' });
+  }
+  if (hasPermission(me, FINANCE_PERMISSIONS.invoicesList)) {
+    items.push({ href: '/app/finance/invoices', label: 'Invoices' });
+  }
+  if (hasPermission(me, FINANCE_PERMISSIONS.billingRunPreview)) {
+    items.push({ href: '/app/finance/billing', label: 'Billing run' });
+  }
+  if (hasPermission(me, FINANCE_PERMISSIONS.depositsView)) {
+    items.push({ href: '/app/finance/deposits', label: 'Deposits' });
+  }
+  if (hasPermission(me, METERS_PERMISSIONS.list)) {
+    items.push({ href: '/app/finance/meters', label: 'Meters' });
+  }
+  if (hasPermission(me, FINANCE_PERMISSIONS.invoicesList)) {
+    items.push({ href: '/app/finance/credit-notes', label: 'Credit notes' });
+  }
+  if (UTILITIES_ALLOCATION_ENABLED && hasPermission(me, UTILITIES_PERMISSIONS.allocate)) {
+    items.push({ href: '/app/finance/utilities', label: 'Utilities' });
+  }
+  return items;
+}
+
 function isPeopleNavActive(pathname: string, href: string): boolean {
   if (href === '/app/residents') {
     return (
@@ -81,6 +146,8 @@ export function AppShell({ children }: { children: ReactNode }): ReactNode {
 
   const adminNav = useMemo(() => buildAdminNav(me), [me]);
   const peopleNav = useMemo(() => buildPeopleNav(me), [me]);
+  const leasingNav = useMemo(() => buildLeasingNav(me), [me]);
+  const financeNav = useMemo(() => buildFinanceNav(me), [me]);
   const showOperations = hasPermission(me, IMPORT_PERMISSIONS.operationsRead);
 
   async function onLogout(): Promise<void> {
@@ -134,6 +201,51 @@ export function AppShell({ children }: { children: ReactNode }): ReactNode {
               </p>
               {peopleNav.map((item) => {
                 const active = isPeopleNavActive(pathname, item.href);
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    className={navClassName(active)}
+                    aria-current={active ? 'page' : undefined}
+                  >
+                    {item.label}
+                  </Link>
+                );
+              })}
+            </>
+          ) : null}
+
+          {leasingNav.length > 0 ? (
+            <>
+              <p className="text-muted-foreground px-3 pb-1 pt-4 text-xs font-semibold uppercase tracking-wide">
+                Leasing
+              </p>
+              {leasingNav.map((item) => {
+                const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    className={navClassName(active)}
+                    aria-current={active ? 'page' : undefined}
+                  >
+                    {item.label}
+                  </Link>
+                );
+              })}
+            </>
+          ) : null}
+
+          {financeNav.length > 0 ? (
+            <>
+              <p className="text-muted-foreground px-3 pb-1 pt-4 text-xs font-semibold uppercase tracking-wide">
+                Finance
+              </p>
+              {financeNav.map((item) => {
+                const active =
+                  item.href === '/app/finance'
+                    ? pathname === '/app/finance'
+                    : pathname === item.href || pathname.startsWith(`${item.href}/`);
                 return (
                   <Link
                     key={item.href}

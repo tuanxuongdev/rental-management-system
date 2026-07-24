@@ -24,6 +24,7 @@ export function DocumentUploadForm(): React.JSX.Element {
   const router = useRouter();
   const searchParams = useSearchParams();
   const partyId = searchParams.get('partyId') ?? undefined;
+  const leaseId = searchParams.get('leaseId') ?? undefined;
   const meQuery = useMe();
   const upload = useDocumentUpload();
   const canUpload = canMutate(meQuery.data, DOCUMENT_PERMISSIONS.upload);
@@ -61,6 +62,7 @@ export function DocumentUploadForm(): React.JSX.Element {
         category,
         file,
         partyId,
+        leaseId,
       });
       setStatusMessage(`Upload complete. Scan status: ${document.status}`);
       router.push(`/app/documents/${document.id}`);
@@ -79,6 +81,11 @@ export function DocumentUploadForm(): React.JSX.Element {
       {partyId ? (
         <p className="text-muted-foreground text-xs">
           Will link to party id {partyId.slice(0, 8)}…
+        </p>
+      ) : null}
+      {leaseId ? (
+        <p className="text-muted-foreground text-xs">
+          Will link to lease id {leaseId.slice(0, 8)}…
         </p>
       ) : null}
 

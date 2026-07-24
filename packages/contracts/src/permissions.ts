@@ -73,6 +73,63 @@ export const PERMISSION_KEYS = {
   DOCUMENTS_VIEW: 'documents.view',
   DOCUMENTS_UPLOAD: 'documents.upload',
   DOCUMENTS_DELETE: 'documents.delete',
+  // Sprint-08 leases
+  LEASES_LIST: 'leases.list',
+  LEASES_VIEW: 'leases.view',
+  LEASES_CREATE: 'leases.create',
+  LEASES_UPDATE: 'leases.update',
+  LEASES_ACTIVATE: 'leases.activate',
+  LEASES_OVERRIDE_DO_NOT_RENT: 'leases.override_do_not_rent',
+  // Sprint-09 lease lifecycle
+  LEASES_MOVE_IN: 'leases.move_in',
+  LEASES_RENEW: 'leases.renew',
+  LEASES_TRANSFER: 'leases.transfer',
+  LEASES_MOVE_OUT: 'leases.move_out',
+  LEASES_TERMINATE: 'leases.terminate',
+  ASSETS_KEYS_MANAGE: 'assets.keys.manage',
+  // Sprint-10 billing / finance (docs/06 §15–16, Sprint-10)
+  FINANCE_CHARGES_CREATE: 'finance.charges.create',
+  FINANCE_CHARGES_UPDATE: 'finance.charges.update',
+  FINANCE_CHARGES_VOID: 'finance.charges.void',
+  FINANCE_INVOICES_LIST: 'finance.invoices.list',
+  FINANCE_INVOICES_VIEW: 'finance.invoices.view',
+  FINANCE_INVOICES_ISSUE: 'finance.invoices.issue',
+  FINANCE_BILLING_RUN_PREVIEW: 'finance.billing_run.preview',
+  FINANCE_BILLING_RUN_COMMIT: 'finance.billing_run.commit',
+  FINANCE_DEPOSITS_VIEW: 'finance.deposits.view',
+  FINANCE_DEPOSITS_RECORD: 'finance.deposits.record',
+  FINANCE_CREDIT_NOTES_CREATE: 'finance.credit_notes.create',
+  FINANCE_CREDIT_NOTES_POST: 'finance.credit_notes.post',
+  FINANCE_REPORTS_VIEW: 'finance.reports.view',
+  // Sprint-11 payments / receipts / deposit disposition (docs/06 §15–16)
+  FINANCE_PAYMENTS_LIST: 'finance.payments.list',
+  FINANCE_PAYMENTS_VIEW: 'finance.payments.view',
+  FINANCE_PAYMENTS_RECORD: 'finance.payments.record',
+  FINANCE_PAYMENTS_ALLOCATE: 'finance.payments.allocate',
+  /** Refund request; same key used in SoD dangerous combination. */
+  FINANCE_REFUNDS_REQUEST: 'finance.payments.refund',
+  FINANCE_REFUNDS_APPROVE: 'finance.payments.refund.approve',
+  FINANCE_REFUNDS_EXECUTE: 'finance.payments.refund.execute',
+  FINANCE_DEPOSITS_DISPOSITION: 'finance.deposits.disposition',
+  FINANCE_DEPOSITS_DISPOSITION_APPROVE: 'finance.deposits.disposition.approve',
+  FINANCE_DEPOSITS_DISPOSE: 'finance.deposits.disposition.execute',
+  // Sprint-12 reconciliation / controls (docs/06 wins over sprint synonyms)
+  FINANCE_RECONCILIATION_VIEW: 'finance.reconciliation.view',
+  FINANCE_RECONCILIATION_PERFORM: 'finance.reconciliation.perform',
+  FINANCE_RECONCILIATION_APPROVE: 'finance.reconciliation.approve',
+  FINANCE_PERIOD_CLOSE: 'finance.period.close',
+  /** Canonical export key in docs/06 (sprint synonym exports.finance not used). */
+  FINANCE_EXPORTS_CREATE: 'finance.exports.create',
+  METERS_LIST: 'meters.list',
+  METERS_VIEW: 'meters.view',
+  METERS_CREATE: 'meters.create',
+  METERS_UPDATE: 'meters.update',
+  METERS_READINGS_RECORD: 'meters.readings.record',
+  METERS_READINGS_BULK: 'meters.readings.bulk',
+  UTILITIES_ALLOCATE: 'utilities.allocate',
+  UTILITIES_USAGE_VIEW: 'utilities.usage.view',
+  UTILITIES_TARIFFS_VIEW: 'utilities.tariffs.view',
+  UTILITIES_TARIFFS_MANAGE: 'utilities.tariffs.manage',
   // Platform-only (never on custom org roles)
   PLATFORM_ORGANIZATIONS_LIST: 'platform.organizations.list',
   PLATFORM_SUPPORT_ACCESS_USE: 'platform.support_access.use',
@@ -95,8 +152,8 @@ export const PLATFORM_PERMISSION_KEYS = [
 /** Dangerous combination warned for SoD prep (roles admin + refund). */
 export const DANGEROUS_PERMISSION_COMBINATION = [
   PERMISSION_KEYS.MEMBERS_ROLES_ASSIGN,
-  'organization.security.update',
-  'finance.payments.refund',
+  PERMISSION_KEYS.ORGANIZATION_SECURITY_UPDATE,
+  PERMISSION_KEYS.FINANCE_REFUNDS_REQUEST,
 ] as const;
 
 export const SYSTEM_ROLE_KEYS = {

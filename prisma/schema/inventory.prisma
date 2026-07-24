@@ -76,6 +76,9 @@ model Property {
   residentProfiles     ResidentProfile[]
   waitlistEntries      WaitlistEntry[]
   documentLinks        DocumentLink[]
+  leases               Lease[]
+  billingSchedules     BillingSchedule[]
+  meters               Meter[]
 
   @@index([tenantId, status])
   @@index([tenantId, code])
@@ -163,6 +166,8 @@ model Unit {
   unitAmenities UnitAmenity[]
   statusHistory InventoryStatusHistory[]
   waitlistEntries WaitlistEntry[]
+  leaseAllocations LeaseAllocation[]
+  assetKeys        AssetKey[]
 
   @@index([tenantId, propertyId, status])
   @@index([tenantId, propertyId, code])
@@ -184,6 +189,7 @@ model Bed {
 
   unit          Unit                     @relation(fields: [unitId], references: [id], onDelete: Cascade)
   statusHistory InventoryStatusHistory[]
+  leaseAllocations LeaseAllocation[]
 
   @@index([tenantId, unitId])
   @@map("beds")

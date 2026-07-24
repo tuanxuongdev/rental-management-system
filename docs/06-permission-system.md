@@ -177,8 +177,13 @@ Actions should be precise: `view`, `list`, `create`, `update`, `delete`, `approv
 - `leases.update`
 - `leases.approve`
 - `leases.activate`
+- `leases.override_do_not_rent`
+- `leases.move_in`
 - `leases.renew`
+- `leases.transfer`
+- `leases.move_out`
 - `leases.terminate`
+- `assets.keys.manage`
 - `leases.documents.view`
 - `leases.documents.generate`
 - `leases.documents.sign`

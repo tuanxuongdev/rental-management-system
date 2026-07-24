@@ -29,6 +29,37 @@ export async function isDatabaseReachable(): Promise<boolean> {
 }
 
 export async function resetPlatformTables(prisma: PrismaClient): Promise<void> {
+  // Sprint-10 billing (FK to leases/properties/tenants)
+  await prisma.meterReading.deleteMany();
+  await prisma.meter.deleteMany();
+  await prisma.tariff.deleteMany();
+  await prisma.utilityAllocationRun.deleteMany();
+  await prisma.creditNoteLine.deleteMany();
+  await prisma.creditNote.deleteMany();
+  await prisma.invoiceStatusHistory.deleteMany();
+  await prisma.invoiceLine.deleteMany();
+  await prisma.invoice.deleteMany();
+  await prisma.billingRun.deleteMany();
+  await prisma.chargeRule.deleteMany();
+  await prisma.billingSchedule.deleteMany();
+  await prisma.leaseService.deleteMany();
+  await prisma.serviceCatalogItem.deleteMany();
+  await prisma.lateFeePolicy.deleteMany();
+  await prisma.ledgerEntry.deleteMany();
+  await prisma.ledgerAccount.deleteMany();
+  await prisma.openingBalanceEntry.deleteMany();
+  await prisma.balanceSnapshot.deleteMany();
+  await prisma.securityDeposit.deleteMany();
+
+  // Sprint-08 leases (FK to parties/units/properties/tenants)
+  await prisma.occupancyEvent.deleteMany();
+  await prisma.assetKey.deleteMany();
+  await prisma.leaseStatusHistory.deleteMany();
+  await prisma.leaseAllocation.deleteMany();
+  await prisma.leaseParty.deleteMany();
+  await prisma.leaseTerm.deleteMany();
+  await prisma.lease.deleteMany();
+
   // Sprint-07 documents / residents first (FK to parties/properties/tenants)
   await prisma.documentLink.deleteMany();
   await prisma.documentVersion.deleteMany();
