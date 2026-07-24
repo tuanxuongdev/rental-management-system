@@ -8,7 +8,7 @@ export function Label({ className, ...props }: LabelProps): React.JSX.Element {
   return (
     <label
       className={cn(
-        'text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70',
+        'text-[13px] font-medium leading-[18px] text-[var(--fg-default)] peer-disabled:cursor-not-allowed peer-disabled:opacity-50',
         className,
       )}
       {...props}

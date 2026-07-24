@@ -2,11 +2,12 @@ import {
   type CanActivate,
   type ExecutionContext,
   ForbiddenException,
+  Inject,
   Injectable,
 } from '@nestjs/common';
-import { type Reflector } from '@nestjs/core';
+import { Reflector } from '@nestjs/core';
 
-import { type AuthorizationService } from '../../modules/tenancy/application/authorization.service';
+import { AuthorizationService } from '../../modules/tenancy/application/authorization.service';
 
 import {
   REQUIRED_ANY_PERMISSIONS_KEY,
@@ -18,8 +19,8 @@ import type { AuthActor } from './auth.types';
 @Injectable()
 export class PermissionsGuard implements CanActivate {
   constructor(
-    private readonly reflector: Reflector,
-    private readonly authorization: AuthorizationService,
+    @Inject(Reflector) private readonly reflector: Reflector,
+    @Inject(AuthorizationService) private readonly authorization: AuthorizationService,
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {

@@ -529,7 +529,7 @@ Each row below describes one table independently. “Retain” always remains su
 
 1. **Tenant-complete references:** every Organization-owned parent exposes `UNIQUE (tenant_id,id)`; every child references `(tenant_id,parent_id)`. No relationship may cross an Organization boundary.
 2. **Ownership totals:** for equity interest types, active owner shares for a Property must not exceed `100.0000` over any overlapping effective period. Non-equity interests use explicit types excluded from that sum. Because this is a cross-row temporal aggregate, enforce it in a serializable/locked write protocol plus a reviewed deferred constraint trigger, and test concurrent changes.
-3. **Allocation overlap:** use `btree_gist` and canonical half-open `tstzrange`. Partial GiST `EXCLUDE` constraints prevent overlapping active WHOLE_UNIT allocations by Unit and BED allocations by Bed.
+3. **Allocation overlap:** use `btree_gist` and canonical half-open `tsrange` on `TIMESTAMP` allocation columns (Prisma `DateTime` without TZ). Partial GiST `EXCLUDE` constraints prevent overlapping active WHOLE_UNIT allocations by Unit and BED allocations by Bed.
 4. **Mixed allocation exclusion:** a whole-Unit allocation cannot coexist with Bed or capacity allocations for that Unit in the same period. Enforce through a normalized resource-lock protocol or reviewed constraint trigger.
 5. **Capacity allocation:** lock the Unit row or a collision-safe transaction advisory-lock key, sum overlapping active reservations/allocations, recheck effective capacity, then commit. Availability reads are advisory.
 6. **Parent consistency:** a Bed allocation's Bed belongs to its Unit; Unit belongs to Lease Property; scoped building/floor/meter/maintenance links share Property and tenant.

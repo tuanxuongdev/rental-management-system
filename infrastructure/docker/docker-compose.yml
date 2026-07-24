@@ -1,3 +1,11 @@
+# Local development stack (no cloud deploy).
+#
+# Dependencies only (recommended for hybrid local: Node apps on host):
+#   docker compose -f infrastructure/docker/docker-compose.yml up -d
+#
+# Full containerized apps + deps:
+#   docker compose -f infrastructure/docker/docker-compose.yml --profile apps up --build
+
 services:
   postgres:
     image: postgres:16-alpine
@@ -29,7 +37,41 @@ services:
       timeout: 3s
       retries: 10
 
+  minio:
+    image: minio/minio:RELEASE.2025-04-22T22-12-26Z
+    container_name: rpm-minio
+    restart: unless-stopped
+    command: server /data --console-address ':9001'
+    environment:
+      MINIO_ROOT_USER: local-dev
+      MINIO_ROOT_PASSWORD: local-dev-secret
+    ports:
+      - '9000:9000'
+      - '9001:9001'
+    volumes:
+      - rpm_minio_data:/data
+    # Server image has no curl/mc; readiness is verified by minio-init retries.
+
+  minio-init:
+    image: minio/mc:RELEASE.2025-04-16T18-13-26Z
+    container_name: rpm-minio-init
+    depends_on:
+      - minio
+    entrypoint: >
+      /bin/sh -c "
+      i=0;
+      until mc alias set local http://minio:9000 local-dev local-dev-secret; do
+        i=$$((i+1));
+        if [ $$i -gt 30 ]; then echo 'minio not ready'; exit 1; fi;
+        sleep 1;
+      done;
+      mc mb -p local/rpm-dev || true;
+      exit 0;
+      "
+    restart: 'no'
+
   api:
+    profiles: ['apps']
     build:
       context: ../..
       dockerfile: infrastructure/docker/Dockerfile.api
@@ -38,18 +80,43 @@ services:
     env_file:
       - ../../.env.example
     environment:
+      NODE_ENV: development
       DATABASE_URL: postgresql://rpm:rpm@postgres:5432/rpm?schema=public
+      REDIS_URL: redis://redis:6379
+      S3_ENDPOINT: http://minio:9000
+      S3_BUCKET: rpm-dev
+      S3_ACCESS_KEY_ID: local-dev
+      S3_SECRET_ACCESS_KEY: local-dev-secret
+      S3_REGION: us-east-1
       API_HOST: 0.0.0.0
       API_PORT: 3001
       APP_VERSION: 0.0.0
       GIT_SHA: compose-dev
+      WEB_ORIGIN: http://localhost:3000
+      PAYMENTS_WEBHOOK_SECRET: local-dev-webhook-secret
+      PAYMENTS_WEBHOOK_ALLOW_DEFAULT_SECRET: 'false'
     ports:
       - '3001:3001'
     depends_on:
       postgres:
         condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_started
+    healthcheck:
+      test:
+        [
+          'CMD-SHELL',
+          'node -e "fetch(\"http://127.0.0.1:3001/health\").then((r)=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"',
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 60s
 
   worker:
+    profiles: ['apps']
     build:
       context: ../..
       dockerfile: infrastructure/docker/Dockerfile.worker
@@ -58,6 +125,7 @@ services:
     env_file:
       - ../../.env.example
     environment:
+      NODE_ENV: development
       DATABASE_URL: postgresql://rpm:rpm@postgres:5432/rpm?schema=public
       WORKER_HEALTH_HOST: 0.0.0.0
       WORKER_HEALTH_PORT: 3002
@@ -66,19 +134,34 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+    healthcheck:
+      test:
+        [
+          'CMD-SHELL',
+          'node -e "fetch(\"http://127.0.0.1:3002/health\").then((r)=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"',
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 60s
 
   web:
+    profiles: ['apps']
     build:
       context: ../..
       dockerfile: infrastructure/docker/Dockerfile.web
     container_name: rpm-web
     restart: unless-stopped
     environment:
+      NODE_ENV: production
+      PORT: 3000
       NEXT_PUBLIC_API_BASE_URL: http://localhost:3001
     ports:
       - '3000:3000'
     depends_on:
-      - api
+      api:
+        condition: service_healthy
 
 volumes:
   rpm_postgres_data:
+  rpm_minio_data:

@@ -4,9 +4,10 @@ This directory is the implementation-ready screen specification for the Rental P
 
 ## Foundation documents
 
+- **[UI Master Spec](./UI_MASTER_SPEC.md)** — commercial SaaS redesign north star (Revision B) · **[Master Spec review](./UI_MASTER_SPEC_REVIEW.md)** · **[Phase specs](./phases/README.md)** · **[Phase reviews](./reviews/)** · **[Redesign roadmap briefs](./redesign/README.md)** (Phase-01 … Phase-10)
 - [Cross-cutting patterns](./cross-cutting-patterns.md) — session isolation, permission presentation, high-risk UX, async/bulk/import, offline boundaries, and shared state conventions.
 - [Deferred screen inventory](./deferred-screens.md) — backlog screens referenced in product/architecture docs not yet individually specified.
-- [Design system](../design-system.md) · [Navigation](../navigation.md) · [Screen template](./_template.md)
+- [Design system v2](./design-system.md) (spec) · [Design system implementation](./design-system-implementation.md) · [Theme implementation](./theme-implementation.md) · [i18n implementation](./i18n-implementation.md) · [Design system v1 baseline](../design-system.md) · [Navigation](../navigation.md) · [Screen template](./_template.md)
 
 ## Canonical terminology
 - **Organization:** SaaS customer and isolation boundary; never a renter.

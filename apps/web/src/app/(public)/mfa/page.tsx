@@ -5,10 +5,13 @@ import { useEffect, useState } from 'react';
 
 import { Button, Input, Label } from '@rpm/ui';
 
+import { useT } from '@/i18n';
+
 import { AuthApiError, completeMfaChallenge } from '../../../lib/auth-api';
 import { useAuthStore } from '../../../state/auth-store';
 
 export default function MfaChallengePage() {
+  const t = useT();
   const router = useRouter();
   const pendingMfa = useAuthStore((state) => state.pendingMfa);
   const setPendingMfa = useAuthStore((state) => state.setPendingMfa);
@@ -39,14 +42,14 @@ export default function MfaChallengePage() {
       setAccessToken(result.accessToken);
       router.push(result.organization ? '/app' : '/onboarding/organization');
     } catch (caught) {
-      setError(caught instanceof AuthApiError ? caught.message : 'Verification failed.');
+      setError(caught instanceof AuthApiError ? caught.message : t('auth.verificationFailed'));
     }
   }
 
   if (pendingMfa === null) {
     return (
       <main className="mx-auto flex min-h-screen max-w-md items-center justify-center px-4 py-8">
-        <p className="text-muted-foreground text-sm">Redirecting to sign in…</p>
+        <p className="text-muted-foreground text-sm">{t('auth.redirectingToSignIn')}</p>
       </main>
     );
   }
@@ -54,9 +57,9 @@ export default function MfaChallengePage() {
   return (
     <main className="mx-auto flex min-h-screen max-w-md flex-col justify-center px-4 py-8">
       <form className="bg-card space-y-4 rounded-lg border p-6 shadow-sm" onSubmit={onSubmit}>
-        <h1 className="text-2xl font-semibold">Multi-factor authentication</h1>
+        <h1 className="text-2xl font-semibold">{t('auth.mfaTitle')}</h1>
         <div className="space-y-2">
-          <Label htmlFor="proof">Authentication code</Label>
+          <Label htmlFor="proof">{t('auth.authenticationCode')}</Label>
           <Input
             id="proof"
             inputMode="numeric"
@@ -72,7 +75,7 @@ export default function MfaChallengePage() {
           </p>
         ) : null}
         <Button type="submit" className="w-full">
-          Verify
+          {t('auth.verify')}
         </Button>
       </form>
     </main>

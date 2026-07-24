@@ -36,32 +36,42 @@ docs/                 Product, architecture, ADRs, runbooks
 
 - Node.js **20.11+**
 - pnpm **9+** (`corepack enable`)
-- Docker (optional, for Compose and deploy-dev workflow locally)
+- Docker (for local Postgres / Redis / MinIO)
+
+**Full local setup:** [`docs/local-development.md`](./docs/local-development.md)
 
 ## Quick start
 
 ```bash
 cp .env.example .env
-pnpm install
-pnpm prisma:generate
-pnpm build
+pnpm setup:local
+pnpm docker:deps
+pnpm db:migrate
+pnpm seed:local-bootstrap
+
+pnpm dev:api      # http://localhost:3001/health
+pnpm dev:worker   # http://localhost:3002/health
+pnpm dev:web      # http://localhost:3000
 ```
 
-### Local development
+Default bootstrap login: `owner@localhost.dev` / `LocalDevPassword123!` (then create an Organization at `/onboarding/organization`).
+
+Or run dependencies + apps entirely in Compose:
 
 ```bash
-docker compose -f infrastructure/docker/docker-compose.yml up postgres redis -d
+pnpm db:migrate
+pnpm docker:up
+```
+
+### Local development (hybrid)
+
+```bash
+pnpm docker:deps
 pnpm prisma:migrate:deploy
 
 pnpm dev:api      # http://localhost:3001/health
 pnpm dev:web      # http://localhost:3000/status
 pnpm dev:worker   # health http://localhost:3002/health
-```
-
-Or run the full stack:
-
-```bash
-docker compose -f infrastructure/docker/docker-compose.yml up --build
 ```
 
 ### API endpoints (foundation + current domains)
@@ -130,11 +140,12 @@ Report vulnerabilities privately — see [`SECURITY.md`](./SECURITY.md).
 
 | Doc | Purpose |
 |---|---|
+| [`docs/local-development.md`](./docs/local-development.md) | Local install, Docker deps, migrate, seed, run apps |
 | [`docs/00-overview.md`](./docs/00-overview.md) | Product vision |
 | [`docs/project-roadmap.md`](./docs/project-roadmap.md) | Program roadmap |
 | [`docs/reviews/Mid-Project-Audit.md`](./docs/reviews/Mid-Project-Audit.md) | Mid-project architecture / readiness audit |
-| [`docs/sprints/Sprint-06.md`](./docs/sprints/Sprint-06.md) | Next sprint (M3 import + scale) |
-| [`docs/sprints/Sprint-05.md`](./docs/sprints/Sprint-05.md) | Latest completed domain sprint (portfolio inventory) |
+| [`docs/sprints/Sprint-06.md`](./docs/sprints/Sprint-06.md) | Historical sprint (import + scale) |
+| [`docs/sprints/Sprint-05.md`](./docs/sprints/Sprint-05.md) | Portfolio inventory sprint |
 | [`docs/adr/README.md`](./docs/adr/README.md) | Architecture decision records |
 | [`docs/git-workflow.md`](./docs/git-workflow.md) | Branching and PR workflow |
 | [`docs/commit-convention.md`](./docs/commit-convention.md) | Conventional Commits |

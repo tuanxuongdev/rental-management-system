@@ -3,12 +3,14 @@
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 
-import { Button, Input, Label } from '@rpm/ui';
+import { Alert, Button, Input, Label } from '@rpm/ui';
 
-import { AuthApiError, loginRequest } from '../../../lib/auth-api';
-import { useAuthStore } from '../../../state/auth-store';
+import { useT } from '@/i18n';
+import { AuthApiError, loginRequest } from '@/lib/auth-api';
+import { useAuthStore } from '@/state/auth-store';
 
 export function LoginForm() {
+  const t = useT();
   const router = useRouter();
   const setAccessToken = useAuthStore((state) => state.setAccessToken);
   const setPendingMfa = useAuthStore((state) => state.setPendingMfa);
@@ -43,10 +45,7 @@ export function LoginForm() {
       setAccessToken(result.accessToken);
       router.push(result.organization ? '/app' : '/onboarding/organization');
     } catch (caught) {
-      const message =
-        caught instanceof AuthApiError
-          ? caught.message
-          : 'Unable to sign in right now. Try again later.';
+      const message = caught instanceof AuthApiError ? caught.message : t('auth.signInUnavailable');
       setError(message);
     } finally {
       setLoading(false);
@@ -56,7 +55,7 @@ export function LoginForm() {
   return (
     <form className="space-y-4" onSubmit={onSubmit} noValidate>
       <div className="space-y-2">
-        <Label htmlFor="email">Email</Label>
+        <Label htmlFor="email">{t('common.email')}</Label>
         <Input
           id="email"
           name="email"
@@ -68,7 +67,7 @@ export function LoginForm() {
         />
       </div>
       <div className="space-y-2">
-        <Label htmlFor="password">Password</Label>
+        <Label htmlFor="password">{t('common.password')}</Label>
         <Input
           id="password"
           name="password"
@@ -80,7 +79,7 @@ export function LoginForm() {
         />
       </div>
       <div className="space-y-2">
-        <Label htmlFor="organizationId">Organization ID (optional)</Label>
+        <Label htmlFor="organizationId">{t('auth.organizationIdOptional')}</Label>
         <Input
           id="organizationId"
           name="organizationId"
@@ -89,12 +88,12 @@ export function LoginForm() {
         />
       </div>
       {error ? (
-        <p className="text-sm text-red-600" role="alert" aria-live="polite">
+        <Alert variant="danger" title={t('auth.signInFailed')}>
           {error}
-        </p>
+        </Alert>
       ) : null}
-      <Button className="w-full" type="submit" disabled={loading}>
-        {loading ? 'Signing in…' : 'Sign in'}
+      <Button className="w-full" type="submit" loading={loading}>
+        {t('auth.signIn')}
       </Button>
     </form>
   );

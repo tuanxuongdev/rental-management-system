@@ -33,4 +33,5 @@ COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/packages ./packages
 WORKDIR /app/apps/web
 EXPOSE 3000
-CMD ["pnpm", "exec", "next", "start", "--port", "3000"]
+# Use node directly — runner image does not enable corepack/pnpm.
+CMD ["node", "../../node_modules/next/dist/bin/next", "start", "--port", "3000"]

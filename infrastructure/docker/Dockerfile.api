@@ -17,7 +17,8 @@ RUN pnpm install --frozen-lockfile
 
 FROM deps AS build
 COPY . .
-RUN pnpm --filter @rpm/contracts build \
+RUN pnpm prisma:generate \
+  && pnpm --filter @rpm/contracts build \
   && pnpm --filter @rpm/api build
 
 FROM node:20-alpine AS runner

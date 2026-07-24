@@ -18,11 +18,18 @@ prisma/
 ```bash
 pnpm prisma:generate
 pnpm prisma:validate
-pnpm prisma:migrate:deploy
-pnpm prisma:migrate:status
+pnpm prisma:migrate:deploy   # aka pnpm db:migrate
+pnpm prisma:migrate:status   # aka pnpm db:status
 ```
 
-Local Postgres (Docker Compose) listens on **host port 5433** to avoid conflicts with other installations.
+Local Postgres (Docker Compose) listens on **host port 5433** to avoid conflicts with other installations. Full setup: [`docs/local-development.md`](../docs/local-development.md).
+
+## Local bootstrap seed
+
+```bash
+pnpm seed:local-bootstrap
+# defaults: owner@localhost.dev / LocalDevPassword123!
+```
 
 ## Demo portfolio seed (Sprint-05)
 
