@@ -29,14 +29,14 @@
     "zod": "^3.24.1"
   },
   "devDependencies": {
-    "@nestjs/cli": "^10.4.9",
-    "@nestjs/schematics": "^10.2.3",
-    "@nestjs/testing": "^10.4.15",
+    "@nestjs/cli": "^12.0.0",
+    "@nestjs/schematics": "^12.0.0",
+    "@nestjs/testing": "^12.0.1",
     "@types/cookie-parser": "^1.4.10",
     "@types/express": "^5.0.0",
-    "@types/node": "^22.10.2",
-    "@types/supertest": "^6.0.2",
+    "@types/node": "^26.5.1",
+    "@types/supertest": "^7.2.1",
     "supertest": "^7.0.0",
-    "typescript": "^5.7.2"
+    "typescript": "^7.0.2"
   }
 }
